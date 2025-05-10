@@ -1,19 +1,19 @@
 ## Hệ Thống Nhận Diện Ngủ Gật Cho Người Lái Xe
-Hệ thống sử dụng mô hình Deep Learning (CNN) để phân loại trạng thái mắt của người lái xe, kết hợp với MediaPipe để nhận diện khuôn mặt và xác định vị trí mắt. Khi phát hiện tài xế nhắm mắt quá lâu (ngủ gật), hệ thống sẽ phát cảnh báo.
+ - Hệ thống sử dụng mô hình Deep Learning (CNN) để phân loại trạng thái mắt của người lái xe, kết hợp với MediaPipe để nhận diện khuôn mặt và xác định vị trí mắt. Khi phát hiện tài xế nhắm mắt quá lâu (ngủ gật), hệ thống sẽ phát cảnh báo.
 ## Cấu trúc mô hình CNN
-3 lớp Conv2D (32 filter) + MaxPooling.
-2 lớp Conv2D (32 filter) + MaxPooling.
-3 lớp Fully Connected với Dropout (256, 128, 64 units).
-Lớp đầu ra sigmoid với 1 neuron (phân loại nhị phân).
+ - 3 lớp Conv2D (32 filter) + MaxPooling.
+ - 2 lớp Conv2D (32 filter) + MaxPooling.
+ - 3 lớp Fully Connected với Dropout (256, 128, 64 units).
+ - Lớp đầu ra sigmoid với 1 neuron (phân loại nhị phân).
 
 ![alt text](image.png)
 
 ## Cài đặt
-opencv-python.
-numpy.
-tensorflow.
-mediapipe.
-playsound.
+ - opencv-python.
+ - numpy.
+ - tensorflow.
+ - mediapipe.
+ - playsound.
 
 ## Cấu trúc chương trình (main.py)
 
@@ -46,7 +46,7 @@ playsound.
 ---
 
 # Hướng dẫn
-Đảm bảo đã cài đặt các thư viện cần thiết.
-Huấn luyện mô hình (nếu chưa có): python train_model.py.
-Chạy chương trình chính: python main.py.
-Nhấn phím ESC để thoát.
+ - Đảm bảo đã cài đặt các thư viện cần thiết.
+ - Huấn luyện mô hình (nếu chưa có): python train_model.py.
+ - Chạy chương trình chính: python main.py.
+ - Nhấn phím ESC để thoát.
