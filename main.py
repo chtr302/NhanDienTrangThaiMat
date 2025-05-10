@@ -6,16 +6,19 @@ from tensorflow import keras
 import os
 import threading
 import time
+from collections import deque
 
 eye_model = keras.models.load_model(os.path.join('models','best_model_first_try.keras'))
 
 mp_face_mesh = mp.solutions.face_mesh
 face_mesh = mp_face_mesh.FaceMesh(
     max_num_faces=1,
+    # các biến giúp nhận diện tốt hơn
     refine_landmarks=True,
     min_detection_confidence=0.5,
     min_tracking_confidence=0.5
 )
+
 mp_face_detection = mp.solutions.face_detection
 face_detection = mp_face_detection.FaceDetection(
     model_selection=1,
@@ -23,12 +26,14 @@ face_detection = mp_face_detection.FaceDetection(
 )
 mp_drawing = mp.solutions.drawing_utils
 
-LEFT_EYE_INDICES = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398]
-RIGHT_EYE_INDICES = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
+LEFT_EYE_INDICES = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398] # Landmark mắt trái
+RIGHT_EYE_INDICES = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246] # Landmark mắt phải
 
 face_present = True
 last_face_time = time.time()
 alarm_playing = False
+
+is_dozing = False
 
 def play_alarm():
     global alarm_playing
@@ -37,7 +42,7 @@ def play_alarm():
         try:
             playsound(os.path.join('alarm.wav'))
         except Exception as e:
-            print(f"Lỗi phát âm thanh: {e}")
+            print(f"hinh nhu la khong tim thay am thanh: {e}")
         finally:
             alarm_playing = False
 
@@ -58,223 +63,169 @@ def check_if_face_present(frame):
 
 def eye_cropper(frame):
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    results = face_mesh.process(rgb_frame)
+    results = face_mesh.process(rgb_frame) # phát hiện landmark từ frame đã đổi qua màu rgb
     
     if not results.multi_face_landmarks:
         return None, None
 
-    face_landmarks = results.multi_face_landmarks[0]
+    face_landmarks = results.multi_face_landmarks[0] # lấy landmark cúa mặt đầu tiên
 
-    # Lấy landmarks cho cả hai mắt
+    # tính vị trí mắt xong trả về
     left_eye_img = extract_eye(frame, face_landmarks, LEFT_EYE_INDICES)
     right_eye_img = extract_eye(frame, face_landmarks, RIGHT_EYE_INDICES)
     
     return left_eye_img, right_eye_img
 
+last_l_img, last_r_img = None, None
+
+OPEN_TH = 0.98 # cai nay la gia tri cho chuong trinh biet mat mo
+CLOSE_TH = 0.95 # cai nay cung giong the nhung la mat dong
+
 def extract_eye(frame, face_landmarks, eye_indices):
-    eye_landmarks = []
+    eye_lms = [(int(face_landmarks.landmark[i].x * frame.shape[1]),
+                int(face_landmarks.landmark[i].y * frame.shape[0]))
+               for i in eye_indices] # duyệt qua eye_indices 
     
-    for idx in eye_indices:
-        landmark = face_landmarks.landmark[idx]
-        x = int(landmark.x * frame.shape[1])
-        y = int(landmark.y * frame.shape[0])
-        eye_landmarks.append((x, y))
-    
-    if len(eye_landmarks) != len(eye_indices):
+    if not eye_lms:
         return None
 
-    x_max = max([coordinate[0] for coordinate in eye_landmarks])
-    x_min = min([coordinate[0] for coordinate in eye_landmarks])
-    y_max = max([coordinate[1] for coordinate in eye_landmarks])
-    y_min = min([coordinate[1] for coordinate in eye_landmarks])
+    xs, ys = zip(*eye_lms)
+    x_min, x_max = min(xs), max(xs)
+    y_min, y_max = min(ys), max(ys)
+    w, h = x_max - x_min, y_max - y_min
+    pad_w, pad_h = int(w*0.3), int(h*0.3)
 
-    x_range = x_max - x_min
-    y_range = y_max - y_min
+    x1 = max(x_min - pad_w, 0);   x2 = min(x_max + pad_w, frame.shape[1])
+    y1 = max(y_min - pad_h, 0);   y2 = min(y_max + pad_h, frame.shape[0])
 
-    if x_range > y_range:
-        right = round(.5*x_range) + x_max
-        left = x_min - round(.5*x_range)
-        bottom = round((((right-left) - y_range))/2) + y_max
-        top = y_min - round((((right-left) - y_range))/2)
-    else:
-        bottom = round(.5*y_range) + y_max
-        top = y_min - round(.5*y_range)
-        right = round((((bottom-top) - x_range))/2) + x_max
-        left = x_min - round((((bottom-top) - x_range))/2)
-
-    top = max(0, top)
-    bottom = min(frame.shape[0], bottom)
-    left = max(0, left)
-    right = min(frame.shape[1], right)
-
-    cropped = frame[top:bottom, left:right]
-    
-    if cropped.size == 0:
+    crop = frame[y1:y2, x1:x2]
+    if crop.size == 0: 
         return None
-    
     try:
-        cropped = cv2.resize(cropped, (80, 80))
-        image_for_prediction = cropped.reshape(-1, 80, 80, 3)
-        return image_for_prediction
-    except:
+        crop = cv2.resize(crop, (80,80))
+        if eye_indices is LEFT_EYE_INDICES:
+            crop = cv2.flip(crop, 1)
+        return crop.reshape(-1,80,80,3)
+    except cv2.error:
         return None
 
-cap = cv2.VideoCapture(1) # Chuyển về 0 để sử dụng camera của máy
-w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+def predict_eye(img, buf):
+    if img is None:
+        return None
+    p = float(eye_model.predict(img/255.0, verbose=0)[0][0])
+    buf.append(p)
+    return sum(buf)/len(buf)
 
-if not cap.isOpened():
-    raise IOError('Khong mo duoc camera')
+cap = cv2.VideoCapture(0)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-counter = 0  # Đếm frame mắt đóng liên tục
+# lưu giá trị nhận diện của mắt
+left_buf = deque(maxlen=3)
+right_buf = deque(maxlen=3)
+
+mesh_skip = 0
+face_landmarks_cache = None
+
 blink_start = None  # Lúc bắt đầu nháy
 consecutive_closed = 0  # Số frame mắt đóng liên tiếp
 frame_count = 0  # tổng frame đã xử lý
 dozing_count = 0  # Số lần ngủ gật được phát hiện
 
-SLEEP_THRESHOLD_TIME = 1.2  # Mắt không được nhắm quá 1.2s
+SLEEP_THRESHOLD_TIME = 0.8  # Mắt không được nhắm quá 0.8s
 
 while True:
     frame_count += 1
     start_time = time.time()  # Bắt đầu đo thời gian xử lý frame
 
     ret, frame = cap.read()
-    
     if not ret:
-        print("Khong doc duoc tu camera")
         break
+    h, w = frame.shape[:2]
 
-    face_detected = check_if_face_present(frame)
+    if mesh_skip == 0:
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        res = face_mesh.process(rgb)
+        face_landmarks_cache = res.multi_face_landmarks[0] if res.multi_face_landmarks else None
+    mesh_skip = (mesh_skip + 1) % 3
 
-    if not face_detected:
-        cv2.rectangle(frame, (0,0), (int(w), 50), (0,0,0), -1)
-        cv2.putText(frame, "Khong co khuon mat trong khung hinh, nhin vao camera di nhaaaaa!", (10, 30), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-        cv2.imshow('Nhận diện trạng thái mắt', frame)
-
-        counter = 0
-        consecutive_closed = 0
-        blink_start = None
-        
-        k = cv2.waitKey(1)
-        if k == 27:
-            break
+    if not face_landmarks_cache:
         continue
 
-    left_eye_image, right_eye_image = eye_cropper(frame)
-    
-    if left_eye_image is None and right_eye_image is None:
-        cv2.putText(frame, "Khong tim thay mat", (50, 50), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
-        cv2.imshow('Drowsiness Detection', frame)
-        k = cv2.waitKey(1)
-        if k == 27:
-            break
-        continue
+    # Vẽ khung quanh mắt
+    pad = 5
+    for eye_inds in (LEFT_EYE_INDICES, RIGHT_EYE_INDICES):
+        pts = [(int(face_landmarks_cache.landmark[i].x * w),
+                int(face_landmarks_cache.landmark[i].y * h))
+               for i in eye_inds]
+        xs, ys = zip(*pts)
+        x1, x2 = min(xs) - pad, max(xs) + pad
+        y1, y2 = min(ys) - pad, max(ys) + pad
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0,255,0), 1)
 
-    # Process left eye if available
-    left_prediction = None
-    if left_eye_image is not None:
-        left_eye_image = left_eye_image / 255.0
-        left_prediction = eye_model.predict(left_eye_image, verbose=0)
+    l_img = extract_eye(frame, face_landmarks_cache, LEFT_EYE_INDICES)
+    r_img = extract_eye(frame, face_landmarks_cache, RIGHT_EYE_INDICES)
 
-    right_prediction = None
-    if right_eye_image is not None:
-        right_eye_image = right_eye_image / 255.0
-        right_prediction = eye_model.predict(right_eye_image, verbose=0)
-
-    if left_prediction is not None and right_prediction is not None:
-        prediction = (left_prediction + right_prediction) / 2
-    elif left_prediction is not None:
-        prediction = left_prediction
+    # fallback về lần crop thành công trước đó
+    if l_img is None:
+        l_img = last_l_img
     else:
-        prediction = right_prediction
+        last_l_img = l_img
+    if r_img is None:
+        r_img = last_r_img
+    else:
+        last_r_img = r_img
 
-    # Hiển thị trạng thái của từng mắt
-    if left_prediction is not None:
-        eye_status = "Mo" if left_prediction >= 0.5 else "Dong"
-        cv2.putText(frame, f"Mat Trai: {eye_status}", (10, 100), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-    
-    if right_prediction is not None:
-        eye_status = "Mo" if right_prediction >= 0.5 else "Dong"
-        cv2.putText(frame, f"Mat Phai: {eye_status}", (10, 120), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+    lp = predict_eye(l_img, left_buf)
+    rp = predict_eye(r_img, right_buf)
 
-    if prediction >= 0.5:  # Mắt mở
-        if blink_start:
-            blink_duration = time.time() - blink_start
-            if blink_duration < 1.0:  # Nháy mắt bình thường < 1s
-                counter = 0 # Nháy bình thường, counter về 0
-            blink_start = None
-        
-        consecutive_closed = 0
-        status = 'Dang Mo'
-        cv2.putText(frame, status, (round(w/2)-80,70), cv2.FONT_HERSHEY_SIMPLEX, 2, (0,255,0), 2, cv2.LINE_4)
+    # in debug
+    cv2.putText(frame, f"trai:{lp or 0:.2f} phai:{rp or 0:.2f}",
+                (10,30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,0),2)
 
-    else:  # Mắt đóng
+    both_closed = (lp is not None and lp < CLOSE_TH) and (rp is not None and rp < CLOSE_TH)
+    if both_closed:
         consecutive_closed += 1
-        
-        # Đếm thời gian mắt đóng
         if consecutive_closed == 1:
             blink_start = time.time()
-        
-        # Tính thời gian nhắm
-        current_closed_time = time.time() - blink_start if blink_start else 0
-        
-        if current_closed_time > SLEEP_THRESHOLD_TIME:
-            counter = counter + 1
-            status = 'Mat Dong'
+        closed_time = time.time() - blink_start
 
-            cv2.putText(frame, status, (round(w/2)-104,70), cv2.FONT_HERSHEY_SIMPLEX, 2, (0,0,255), 2, cv2.LINE_4)
+        # dozing_count tăng sau mỗi lần
+        if closed_time > SLEEP_THRESHOLD_TIME and not is_dozing:
+            dozing_count += 1
+            is_dozing = True
+            if not alarm_playing:
+                t = threading.Thread(target=play_alarm)
+                t.daemon = True
+                t.start()
 
-            # Hiển thị thời gian mắt đóng
-            cv2.putText(frame, f"Mat dong duoc: {current_closed_time:.1f}s", 
-                        (10, int(h)-20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-            
-            # Cảnh báo nếu quá thời gian
-            if counter > 2:
-                cv2.rectangle(frame, (round(w/2) - 160, round(h) - 200), (round(w/2) + 160, round(h) - 120), (0,0,255), -1)
-                cv2.putText(frame, 'DRIVER SLEEPING', (round(w/2)-136,round(h) - 146), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 2, cv2.LINE_4)
-                
-                # Tăng số lần ngủ gật
-                if current_closed_time > SLEEP_THRESHOLD_TIME:  # Nếu nhắm mắt quá lâu thì tính là một lần ngủ gật
-                    dozing_count += 1
-                    blink_start = time.time()
-                
-                cv2.putText(frame, f"So lan ngu gat: {dozing_count}", 
-                        (10, int(h)-80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-                
-                # Hiển thị cảnh báo nếu ngủ gật quá 3 lần
-                if dozing_count > 3:
-                    cv2.putText(frame, 'BAN NEN DI NGU!', (round(w/2)-180, round(h/2) + 10), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255,255,255), 2, cv2.LINE_4)
-                
-                # Tạo thread riêng, nếu không có nó sẽ dẫn tới giao diện lúc phát hiện nó bị đơ
-                if not alarm_playing:
-                    alarm_thread = threading.Thread(target=play_alarm)
-                    alarm_thread.daemon = True  # Huỷ thread
-                    alarm_thread.start()
-                
-                counter = 1  # Giảm counter xuống
-        else:
-            status = 'Vua nhay mat'
-            cv2.putText(frame, status, (round(w/2)-104,70), cv2.FONT_HERSHEY_SIMPLEX, 2, (255,255,0), 2, cv2.LINE_4)
+        # thông báo cứng nếu alarm bật
+        if alarm_playing:
+            cv2.putText(frame,
+                        'TAI XE DANG NHAM MAT',
+                        (round(w/2)-200, round(h/2)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0,0,255), 3)
+    # mắt mở thì bắt đầu lại
+    else:
+        is_dozing = False
+        consecutive_closed = 0
+        blink_start = None
 
-    # Luôn hiển thị số lần ngủ gật
-    cv2.putText(frame, f"So lan ngu gat: {dozing_count}", 
-                (10, int(h)-80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+    # ngu gat
+    cv2.putText(frame,
+                f"So lan ngu gat: {dozing_count}",
+                (10, h-80),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255,255,255), 2)
 
     processing_time = time.time() - start_time
-    cv2.putText(frame, f"Process time: {processing_time*1000:.0f}ms", (10, int(h)-50), 
+    cv2.putText(frame, f"thoi gian xu ly frame: {processing_time*1000:.0f}ms", (10, int(h)-50), 
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+
+    cv2.imshow('nhan dien trang thai mat', frame)
     
-    # Hiển thị frame đã xử lý
-    cv2.imshow('Drowsiness Detection', frame)
-    
-    # Xử lý phím nhấn
+    # nhận ESC thoát
     k = cv2.waitKey(1)
-    if k == 27:  # ESC key
+    if k == 27:
         break
 
 # Giải phóng tài nguyên
