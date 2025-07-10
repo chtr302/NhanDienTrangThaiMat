@@ -1,28 +1,27 @@
 import keras._tf_keras.keras as tf
 from keras._tf_keras.keras.preprocessing.image import ImageDataGenerator
-import matplotlib.pyplot as plt
 import os
 
-DATA_DIR = 'data'
-TRAIN_DIR = os.path.join(DATA_DIR, 'train')
-TEST_DIR = os.path.join(DATA_DIR,'test')
+TRAIN_DIR = os.path.join('data', 'train')
+TEST_DIR = os.path.join('data','test')
+BATCH_SIZE = 32
 
 # TRAIN SET
 train_datagen = ImageDataGenerator(
     rescale=1./255,
-    rotation_range=20,
-    width_shift_range=0.2,
-    height_shift_range=0.2,
-    shear_range=0.2,
+    rotation_range=15,
+    width_shift_range=0.15,
+    height_shift_range=0.15,
+    shear_range=0,
     zoom_range=0.2,
     horizontal_flip=True
 )
 training_set = train_datagen.flow_from_directory(
     TRAIN_DIR,
     target_size=(80,80),
-    batch_size=32,
+    batch_size=BATCH_SIZE,
     class_mode='binary',
-    classes=['closed','open']
+    classes=['Closed','Open']
 )
 
 # TEST SET
@@ -30,9 +29,9 @@ validation_datagen = ImageDataGenerator(rescale=1./255)
 validation_set = validation_datagen.flow_from_directory(
     TEST_DIR,
     target_size=(80,80),
-    batch_size=32,
+    batch_size=BATCH_SIZE,
     class_mode='binary',
-    classes=['closed','open']
+    classes=['Closed','Open']
 )
 
 # CNN MODEL
@@ -68,7 +67,7 @@ early_stopping = tf.callbacks.EarlyStopping(
     restore_best_weights=True
 )
 model_checkpoint = tf.callbacks.ModelCheckpoint(
-    os.path.join('models','best_model_first_try.keras'),
+    os.path.join('models','model.keras'),
     monitor='val_accuracy',
     save_best_only=True,
     verbose=1
