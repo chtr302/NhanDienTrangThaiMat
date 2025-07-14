@@ -4,7 +4,7 @@ import cv2, threading, os, time
 from playsound import playsound
 
 class DriverMonitor:
-    def __init__(self, sleep_th=1, alarm_file="alarm.wav"):
+    def __init__(self, sleep_th=2, alarm_file="alarm.wav"):
         self.frame_processor = FrameProcessor()
         self.eye_processor = EyeProcessor()
 
