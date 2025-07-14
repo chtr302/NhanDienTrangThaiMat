@@ -7,7 +7,7 @@ class FrameProcessor:
     Process frame and draw landmarks on frame
     """
 
-    def __init__(self):
+    def __init__(self, skip_frame = 2):
         self.mediapipe_face_mesh = mp.solutions.face_mesh
         self.mediapipe_draw = mp.solutions.drawing_utils
         self.mediapipe_draw_styles = mp.solutions.drawing_styles
@@ -22,6 +22,10 @@ class FrameProcessor:
         
         # CLAHE cho cải thiện ánh sáng
         self.clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+
+        self.skip_frame = skip_frame
+        self.frame_count = 0
+        self.cached_landmarks = None
     
     def preprocess_frame(self, frame, enhance_lighting=True, reduce_noise=True):
         """
@@ -51,6 +55,11 @@ class FrameProcessor:
         """
         Process one frame with optional preprocessing
         """
+        should_process = (self.frame_count % (self.skip_frame + 1)) == 0
+        self.frame_count += 1
+        if not should_process and self.cached_landmarks is not None:
+            return self.cached_landmarks
+        
         if use_preprocessing: # Preprocessing frame
             processed_frame = self.preprocess_frame(frame)
         else:
@@ -58,7 +67,8 @@ class FrameProcessor:
         
         rgb_frame = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB) # Convert BGR2RGB
         results = self.face_mesh.process(rgb_frame) # Process frame
-        
+        self.cached_landmarks = results
+
         return results
     
     def draw_landmarks(self, frame, results, draw_tesselation=True, draw_contours=True, draw_irises=True):
