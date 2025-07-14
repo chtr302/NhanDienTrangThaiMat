@@ -39,7 +39,6 @@ def main():
         key = cv2.waitKey(1) & 0xFF
         
         if key == ord('q'):
-            print("Quitting...")
             break
         elif key == ord('t'):
             monitor.detection_config['tesselation'] = not monitor.detection_config['tesselation']
