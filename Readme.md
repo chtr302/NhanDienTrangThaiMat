@@ -60,7 +60,6 @@ python test_model.py
 ```
 FirstTry/
 ├── DriverDetection/           # Module chính
-│   ├── main.py               # Chương trình chính
 │   ├── driver_monitor.py     # Class quản lý hệ thống
 │   ├── frame_processor.py    # Xử lý frame và landmarks
 │   ├── eye_processor.py      # Phân tích trạng thái mắt
@@ -71,7 +70,8 @@ FirstTry/
 ├── data/                     # Dataset
 │   ├── train/               # Dữ liệu training
 │   └── test/                # Dữ liệu testing
-├── requirements.txt          # Dependencies
+├── main.py                  # Chương trình chính
+├── requirements.txt         # Dependencies
 ├── test_model.py            # Script test model
 ├── alarm.wav                # File âm thanh cảnh báo
 └── README.md                # Documentation
