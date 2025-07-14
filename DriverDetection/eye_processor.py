@@ -12,6 +12,10 @@ class EyeProcessor:
         self.LEFT_EYE_INDICES = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398] # Landmarks for eye left
         self.RIGHT_EYE_INDICES = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246] # Landmarks for eye right
 
+        self.skip_frame = 2
+        self.frame_count = 0
+        self.cached_predictions = None
+
     def __extract_eye_landmarks(self,frame_shape, face_landmarks, eye_type='left'):
         """
         Extract landmarks of eye
@@ -68,6 +72,10 @@ class EyeProcessor:
     def detect_eyes(self, frame, face_landmarks):
         """
         """
+        should_predict = (self.frame_count % (self.skip_frame + 1)) == 0
+        if not should_predict and self.cached_predictions is not None:
+            return self.cached_predictions
+        
         left_eye_landmarks = self.__extract_eye_landmarks(frame.shape, face_landmarks, eye_type='left')
         left_img = self.__crop_eye_region(frame,left_eye_landmarks)
         left_img = self.__process_eye(left_img)
@@ -77,5 +85,6 @@ class EyeProcessor:
         right_img = self.__crop_eye_region(frame,right_eye_landmarks)
         right_img = self.__process_eye(right_img)
         right_eye_state, right_eye_confidence = self.__predict_eye_state(right_img)
-
-        return left_eye_state, right_eye_state, left_eye_confidence, right_eye_confidence
+        results = (left_eye_state, right_eye_state, left_eye_confidence, right_eye_confidence)
+        self.cached_predictions = results
+        return results
