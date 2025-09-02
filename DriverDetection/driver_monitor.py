@@ -126,15 +126,20 @@ class DriverMonitor:
 
             # --- Yawn detection ---
             yawn_detected, yawn_conf = False, 0.0
-            if frame_results.multi_face_landmarks:
-                mouth_img = self.yawn_processor.crop_mouth_region(frame, frame_results)
-                if mouth_img is not None:
-                    yawn_detected, yawn_conf = self.yawn_processor.predict(mouth_img)
-                    self.__update_yawn_time(yawn_detected)
+            if hasattr(self.yawn_processor, 'available') and self.yawn_processor.available:
+                if frame_results.multi_face_landmarks:
+                    mouth_img = self.yawn_processor.crop_mouth_region(frame, frame_results)
+                    if mouth_img is not None:
+                        yawn_detected, yawn_conf = self.yawn_processor.predict(mouth_img)
+                        self.__update_yawn_time(yawn_detected)
+                    else:
+                        self.yawn_start_time = None
+                        self.yawn_duration = 0.0
                 else:
                     self.yawn_start_time = None
                     self.yawn_duration = 0.0
             else:
+                # Yawn processor not available, disable yawn detection
                 self.yawn_start_time = None
                 self.yawn_duration = 0.0
 
