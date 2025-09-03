@@ -1,9 +1,11 @@
-try:
-    import tensorflow as tf
-    from tensorflow.keras.preprocessing.image import ImageDataGenerator
-except ImportError:
-    import keras as tf
-    from keras.preprocessing.image import ImageDataGenerator
+# try:
+#     import tensorflow as tf
+#     from tensorflow.keras.preprocessing.image import ImageDataGenerator
+# except ImportError:
+#     import keras as tf
+#     from keras.preprocessing.image import ImageDataGenerator
+from keras._tf_keras.keras.preprocessing.image import ImageDataGenerator
+import tensorflow as tf
 import os
 
 TRAIN_DIR = os.path.join('data', 'train')
