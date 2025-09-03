@@ -1,9 +1,10 @@
-try:
-    # Try TensorFlow's Keras first (recommended)
-    from tensorflow.keras.models import load_model
-except ImportError:
-    # Fallback to standalone Keras (if available)
-    from keras.models import load_model
+# try:
+#     # Try TensorFlow's Keras first (recommended)
+#     from tensorflow.keras.models import load_model
+# except ImportError:
+#     # Fallback to standalone Keras (if available)
+#     from keras._tf_keras.keras.models import load_model
+from keras._tf_keras.keras.models import load_model
 import os
 
 class Models:
@@ -26,7 +27,7 @@ class Models:
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model file not found at: {model_path}")
             
-        self.eye_model = load_model(model_path)
+        self.eye_model = load_model(os.path.join(os.path.dirname(__file__),"..","models","model.keras"))
         print(f"✅ Model loaded successfully from: {model_path}")
         return self.eye_model
     
