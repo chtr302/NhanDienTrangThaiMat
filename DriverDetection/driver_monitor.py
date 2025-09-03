@@ -1,5 +1,6 @@
 from .frame_processor import FrameProcessor
 from .eye_processor import EyeProcessor
+from .yawn_processor import YawnProcessor
 import cv2, threading, os, time
 from playsound import playsound
 
@@ -7,6 +8,7 @@ class DriverMonitor:
     def __init__(self, sleep_th=2, alarm_file="alarm.wav"):
         self.frame_processor = FrameProcessor()
         self.eye_processor = EyeProcessor()
+        self.yawn_processor = YawnProcessor()
 
         self.detection_config = {
             'tesselation': False,
@@ -25,6 +27,9 @@ class DriverMonitor:
 
         self.eyes_closed_start_time = None
         self.eyes_closed_duration = 0.0
+
+        self.yawn_start_time = None
+        self.yawn_duration = 0.0
 
     def __is_alarm_playing(self):
         return self.alarm_playing
@@ -93,6 +98,18 @@ class DriverMonitor:
         self.__update_eyes_closed_time(eyes_closed)
         return self.eyes_closed_duration >= self.SLEEP_TH
 
+    def __update_yawn_time(self, yawn):
+        current_time = time.time()
+        if yawn:
+            if self.yawn_start_time is None:
+                self.yawn_start_time = current_time
+                self.yawn_duration = 0.0
+            else:
+                self.yawn_duration = current_time - self.yawn_start_time
+        else:
+            self.yawn_start_time = None
+            self.yawn_duration = 0.0
+
     def process_frame(self, frame):
         try:
             frame_results = self.frame_processor.process_frame(frame, self.detection_config['use_preprocessing'])
@@ -107,6 +124,25 @@ class DriverMonitor:
             eye_results = self.__process_eyes(annotated_frame, frame_results)
             is_drowsy = self.__check_drowsiness(eye_results)
 
+            # --- Yawn detection ---
+            yawn_detected, yawn_conf = False, 0.0
+            if hasattr(self.yawn_processor, 'available') and self.yawn_processor.available:
+                if frame_results.multi_face_landmarks:
+                    mouth_img = self.yawn_processor.crop_mouth_region(frame, frame_results)
+                    if mouth_img is not None:
+                        yawn_detected, yawn_conf = self.yawn_processor.predict(mouth_img)
+                        self.__update_yawn_time(yawn_detected)
+                    else:
+                        self.yawn_start_time = None
+                        self.yawn_duration = 0.0
+                else:
+                    self.yawn_start_time = None
+                    self.yawn_duration = 0.0
+            else:
+                # Yawn processor not available, disable yawn detection
+                self.yawn_start_time = None
+                self.yawn_duration = 0.0
+
             try:
                 if is_drowsy and not self.__is_alarm_playing():
                     self.__start_playing_alarm()
@@ -116,14 +152,16 @@ class DriverMonitor:
                 print(f"alarm error: {alarm_error}")
                 self.alarm_playing = False
 
-            self.__add_ui_elements(annotated_frame, eye_results, is_drowsy)
-            
+            self.__add_ui_elements(annotated_frame, eye_results, is_drowsy, yawn_detected, yawn_conf)
             return {
                 'frame': annotated_frame,
                 'face_detected': frame_results.multi_face_landmarks is not None,
                 'eye_results': eye_results,
                 'is_drowsy': is_drowsy,
-                'closed_duration': self.eyes_closed_duration
+                'closed_duration': self.eyes_closed_duration,
+                'yawn': yawn_detected,
+                'yawn_conf': yawn_conf,
+                'yawn_duration': self.yawn_duration
             }
             
         except Exception as e:
@@ -137,7 +175,10 @@ class DriverMonitor:
                     'closed': False
                 },
                 'is_drowsy': False,
-                'closed_duration': 0.0
+                'closed_duration': 0.0,
+                'yawn': False,
+                'yawn_conf': 0.0,
+                'yawn_duration': 0.0
             }
     
     def __process_eyes(self, frame, face):
@@ -158,7 +199,7 @@ class DriverMonitor:
             'closed': False
         }
 
-    def __add_ui_elements(self, frame, eye_results, is_drowsy):
+    def __add_ui_elements(self, frame, eye_results, is_drowsy, yawn, yawn_conf):
         left_state = eye_results['left_eye']['state']
         right_state = eye_results['right_eye']['state']
         eye_text = f"Eyes: L={left_state} R={right_state}"
@@ -167,8 +208,14 @@ class DriverMonitor:
         time_text = f"Closed time: {self.eyes_closed_duration:.1f}s / {self.SLEEP_TH:.1f}s"
         cv2.putText(frame, time_text, (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
+        yawn_text = f"Yawn: {yawn} ({yawn_conf:.2f}) | Yawn time: {self.yawn_duration:.1f}s"
+        cv2.putText(frame, yawn_text, (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+
+        if self.yawn_duration >= 2.0:
+            cv2.putText(frame, "Ban co dau hieu buon ngu!", (10, 170), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
+
         if is_drowsy:
-            cv2.putText(frame, "Day di, day di!", (10, 110), 
+            cv2.putText(frame, "Day di, day di!", (10, 140), 
                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
 
     def update_config(self, **kwargs):

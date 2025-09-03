@@ -1,0 +1,46 @@
+Epoch 1: val_accuracy improved from -inf to 0.87132, saving model to models\yawn_model.keras
+135/135 ━━━━━━━━━━━━━━━━━━━━ 24s 168ms/step - accuracy: 0.6646 - loss: 0.5696 - val_accuracy: 0.8713 - val_loss: 0.3364 - learning_rate: 0.0010
+Epoch 2/24
+135/135 ━━━━━━━━━━━━━━━━━━━━ 0s 215ms/step - accuracy: 0.8959 - loss: 0.2822 
+Epoch 2: val_accuracy did not improve from 0.87132
+135/135 ━━━━━━━━━━━━━━━━━━━━ 31s 228ms/step - accuracy: 0.8960 - loss: 0.2821 - val_accuracy: 0.8637 - val_loss: 0.2818 - learning_rate: 0.0010
+Epoch 3/24
+135/135 ━━━━━━━━━━━━━━━━━━━━ 0s 213ms/step - accuracy: 0.9118 - loss: 0.2339 
+Epoch 3: val_accuracy improved from 0.87132 to 0.92039, saving model to models\yawn_model.keras
+135/135 ━━━━━━━━━━━━━━━━━━━━ 31s 228ms/step - accuracy: 0.9118 - loss: 0.2340 - val_accuracy: 0.9204 - val_loss: 0.2098 - learning_rate: 0.0010
+Epoch 4/24
+135/135 ━━━━━━━━━━━━━━━━━━━━ 0s 213ms/step - accuracy: 0.9271 - loss: 0.2243 
+Epoch 4: val_accuracy did not improve from 0.92039
+135/135 ━━━━━━━━━━━━━━━━━━━━ 31s 226ms/step - accuracy: 0.9271 - loss: 0.2242 - val_accuracy: 0.9073 - val_loss: 0.2384 - learning_rate: 0.0010
+Epoch 5/24
+135/135 ━━━━━━━━━━━━━━━━━━━━ 0s 214ms/step - accuracy: 0.9343 - loss: 0.1803 
+Epoch 5: val_accuracy improved from 0.92039 to 0.94111, saving model to models\yawn_model.keras
+135/135 ━━━━━━━━━━━━━━━━━━━━ 31s 228ms/step - accuracy: 0.9343 - loss: 0.1804 - val_accuracy: 0.9411 - val_loss: 0.1430 - learning_rate: 0.0010
+Epoch 6/24
+135/135 ━━━━━━━━━━━━━━━━━━━━ 0s 216ms/step - accuracy: 0.9304 - loss: 0.1847 
+Epoch 6: val_accuracy improved from 0.94111 to 0.94984, saving model to models\yawn_model.keras
+135/135 ━━━━━━━━━━━━━━━━━━━━ 31s 230ms/step - accuracy: 0.9305 - loss: 0.1847 - val_accuracy: 0.9498 - val_loss: 0.1260 - learning_rate: 0.0010
+Epoch 7/24
+135/135 ━━━━━━━━━━━━━━━━━━━━ 0s 157ms/step - accuracy: 0.9370 - loss: 0.1759 
+Epoch 7: val_accuracy improved from 0.94984 to 0.97274, saving model to models\yawn_model.keras
+135/135 ━━━━━━━━━━━━━━━━━━━━ 22s 161ms/step - accuracy: 0.9370 - loss: 0.1759 - val_accuracy: 0.9727 - val_loss: 0.1070 - learning_rate: 0.0010
+Epoch 8/24
+135/135 ━━━━━━━━━━━━━━━━━━━━ 0s 85ms/step - accuracy: 0.9405 - loss: 0.1619  
+Epoch 8: val_accuracy did not improve from 0.97274
+135/135 ━━━━━━━━━━━━━━━━━━━━ 12s 89ms/step - accuracy: 0.9405 - loss: 0.1620 - val_accuracy: 0.9586 - val_loss: 0.1309 - learning_rate: 0.0010
+Epoch 9/24
+135/135 ━━━━━━━━━━━━━━━━━━━━ 0s 86ms/step - accuracy: 0.9410 - loss: 0.1701  
+Epoch 9: val_accuracy did not improve from 0.97274
+135/135 ━━━━━━━━━━━━━━━━━━━━ 12s 91ms/step - accuracy: 0.9410 - loss: 0.1701 - val_accuracy: 0.9575 - val_loss: 0.1038 - learning_rate: 0.0010
+Epoch 10/24
+135/135 ━━━━━━━━━━━━━━━━━━━━ 0s 88ms/step - accuracy: 0.9481 - loss: 0.1601  
+Epoch 10: val_accuracy did not improve from 0.97274
+135/135 ━━━━━━━━━━━━━━━━━━━━ 12s 92ms/step - accuracy: 0.9481 - loss: 0.1600 - val_accuracy: 0.9520 - val_loss: 0.1262 - learning_rate: 0.0010
+Epoch 11/24
+135/135 ━━━━━━━━━━━━━━━━━━━━ 0s 88ms/step - accuracy: 0.9538 - loss: 0.1295  
+Epoch 11: val_accuracy did not improve from 0.97274
+135/135 ━━━━━━━━━━━━━━━━━━━━ 12s 92ms/step - accuracy: 0.9538 - loss: 0.1296 - val_accuracy: 0.9564 - val_loss: 0.1151 - learning_rate: 0.0010
+Epoch 12/24
+135/135 ━━━━━━━━━━━━━━━━━━━━ 0s 89ms/step - accuracy: 0.9426 - loss: 0.1639  
+Epoch 12: val_accuracy did not improve from 0.97274
+135/135 ━━━━━━━━━━━━━━━━━━━━ 13s 93ms/step - accuracy: 0.9426 - loss: 0.1637 - val_accuracy: 0.9542 - val_loss: 0.1347 - learning_rate: 0.0010

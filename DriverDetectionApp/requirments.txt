@@ -1,7 +1,0 @@
-Xây dựng desktop app với ngôn ngữ chính là Python, với thư viện PyQt6 để viết giao diện
-
-Yêu cầu:
- - Cho phép nhập âm thanh mong muốn để đưa ra cảnh báo, giới hạn thời gian âm thanh
- - Cho phép bật/tắt với model nhận diện ngáp
-    + Bật: Đưa ra cảnh báo nếu ngáp quá số lần do đầu vào người dùng nhập
- - Bắt buộc sử dụng model nhận diện mắt

@@ -1,0 +1,11 @@
+# FIXED VERSIONS for Python 3.10 - Tested & Working
+# NumPy MUST be 1.24.3 - NumPy 2.x breaks TensorFlow!
+# DON'T install standalone Keras - TensorFlow includes it!
+
+PyQt5==5.15.10
+opencv-python==4.8.1.78
+numpy==1.24.3
+Pillow==10.0.0
+tensorflow==2.13.0
+mediapipe==0.10.7
+playsound==1.3.0

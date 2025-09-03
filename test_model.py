@@ -1,9 +1,21 @@
-from keras._tf_keras.keras import models
+try:
+    from tensorflow.keras import models
+except ImportError:
+    from keras import models
 import os
 import numpy as np
 from PIL import Image
 
-eye_model = models.load_model(os.path.join('models','model.keras'))
+# Get absolute path to models directory
+current_dir = os.path.dirname(os.path.abspath(__file__))
+model_path = os.path.join(current_dir, 'models', 'model.keras')
+
+print(f"🔍 Looking for model at: {model_path}")
+if not os.path.exists(model_path):
+    raise FileNotFoundError(f"Model file not found at: {model_path}")
+
+eye_model = models.load_model(model_path)
+print(f"✅ Model loaded successfully from: {model_path}")
 
 img_path = os.path.join('data','path') # Import image to test
 img = Image.open(img_path)
