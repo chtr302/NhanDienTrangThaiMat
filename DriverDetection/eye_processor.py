@@ -12,7 +12,7 @@ class EyeProcessor:
         self.LEFT_EYE_INDICES = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398] # Landmarks for eye left
         self.RIGHT_EYE_INDICES = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246] # Landmarks for eye right
 
-        self.skip_frame = 2
+        self.skip_frame = 4
         self.frame_count = 0
         self.cached_predictions = None
 
