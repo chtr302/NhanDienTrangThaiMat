@@ -1,11 +1,11 @@
 from .frame_processor import FrameProcessor
 from .eye_processor import EyeProcessor
 from .yawn_processor import YawnProcessor
-import cv2, threading, os, time
-from playsound import playsound
+import cv2
+import time
 
 class DriverMonitor:
-    def __init__(self, sleep_th=2, alarm_file="alarm.wav"):
+    def __init__(self, sleep_th=2):
         self.frame_processor = FrameProcessor()
         self.eye_processor = EyeProcessor()
         self.yawn_processor = YawnProcessor()
@@ -17,69 +17,12 @@ class DriverMonitor:
             'use_preprocessing': True
         }
 
-        self.alert = None
         self.SLEEP_TH = sleep_th
-        self.alarm_playing = False
-
-        self.alarm_file = alarm_file
-        self.alarm_thread = None
-        self.stop_alarm_flag = False
-
         self.eyes_closed_start_time = None
         self.eyes_closed_duration = 0.0
 
         self.yawn_start_time = None
         self.yawn_duration = 0.0
-
-    def __is_alarm_playing(self):
-        return self.alarm_playing
-    
-    def __start_playing_alarm(self):
-        """Start alarm với playsound"""
-        if not os.path.exists(self.alarm_file):
-            return
-            
-        if not self.alarm_playing:
-            try:
-                self.alarm_playing = True
-                self.stop_alarm_flag = False
-                
-                self.alarm_thread = threading.Thread(target=self.__alarm_worker, daemon=True)
-                self.alarm_thread.start()
-                
-            except Exception as e:
-                print(f"starting alaerm error: {e}")
-                self.alarm_playing = False
-    
-    def __alarm_worker(self):
-        """Worker thread cho playsound alarm"""
-        try:
-            while self.alarm_playing and not self.stop_alarm_flag:
-                try:
-                    playsound(self.alarm_file, block=False)
-
-                    for _ in range(20):
-                        if self.stop_alarm_flag or not self.alarm_playing:
-                            break
-                        time.sleep(0.1)
-                        
-                except Exception as e:
-                    print(f"Playsound error: {e}")
-                    break
-                    
-        except Exception as e:
-            print(f"alarm worker error: {e}")
-        finally:
-            self.alarm_playing = False
-
-    def __stop_alarm(self):
-        """Stop alarm"""
-        if self.alarm_playing:
-            try:
-                self.alarm_playing = False
-                self.stop_alarm_flag = True
-            except Exception as e:
-                print(f"stop alarm error: {e}")
 
     def __update_eyes_closed_time(self, eyes_closed):
         current_time = time.time()
@@ -139,18 +82,8 @@ class DriverMonitor:
                     self.yawn_start_time = None
                     self.yawn_duration = 0.0
             else:
-                # Yawn processor not available, disable yawn detection
                 self.yawn_start_time = None
                 self.yawn_duration = 0.0
-
-            try:
-                if is_drowsy and not self.__is_alarm_playing():
-                    self.__start_playing_alarm()
-                elif not is_drowsy and self.__is_alarm_playing():
-                    self.__stop_alarm()
-            except Exception as alarm_error:
-                print(f"alarm error: {alarm_error}")
-                self.alarm_playing = False
 
             self.__add_ui_elements(annotated_frame, eye_results, is_drowsy, yawn_detected, yawn_conf)
             return {
@@ -223,19 +156,9 @@ class DriverMonitor:
         self.detection_config.update(kwargs)
     
     def reset_timer(self):
-        """Reset timer và stop alarm"""
+        """Reset timer"""
         try:
             self.eyes_closed_start_time = None
             self.eyes_closed_duration = 0.0
-            self.__stop_alarm()
         except Exception as e:
             print(f"Reset error: {e}")
-
-    def cleanup(self):
-        """Safe cleanup"""
-        try:
-            self.__stop_alarm()
-            if self.alarm_thread and self.alarm_thread.is_alive():
-                time.sleep(0.5)
-        except Exception as e:
-            print(f"Cleanup error: {e}")
