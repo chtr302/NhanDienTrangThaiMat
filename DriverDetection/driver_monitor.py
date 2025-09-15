@@ -14,7 +14,8 @@ class DriverMonitor:
             'tesselation': False,
             'contours': True,
             'irises': False,
-            'use_preprocessing': True
+            'use_preprocessing': True,
+            'enable_yawn_detection': True
         }
 
         self.SLEEP_TH = sleep_th
@@ -69,21 +70,24 @@ class DriverMonitor:
 
             # --- Yawn detection ---
             yawn_detected, yawn_conf = False, 0.0
-            if hasattr(self.yawn_processor, 'available') and self.yawn_processor.available:
-                if frame_results.multi_face_landmarks:
-                    mouth_img = self.yawn_processor.crop_mouth_region(frame, frame_results)
-                    if mouth_img is not None:
-                        yawn_detected, yawn_conf = self.yawn_processor.predict(mouth_img)
-                        self.__update_yawn_time(yawn_detected)
+            enable_yawn_detection = self.detection_config.get('enable_yawn_detection', True)
+            if enable_yawn_detection:
+                if hasattr(self.yawn_processor, 'available') and self.yawn_processor.available:
+                    if frame_results.multi_face_landmarks:
+                        mouth_img = self.yawn_processor.crop_mouth_region(frame, frame_results)
+                        if mouth_img is not None:
+                            yawn_detected, yawn_conf = self.yawn_processor.predict(mouth_img)
+                            self.__update_yawn_time(yawn_detected)
+                        else:
+                            self.yawn_start_time = None
+                            self.yawn_duration = 0.0
                     else:
                         self.yawn_start_time = None
                         self.yawn_duration = 0.0
-                else:
-                    self.yawn_start_time = None
-                    self.yawn_duration = 0.0
             else:
                 self.yawn_start_time = None
                 self.yawn_duration = 0.0
+                yawn_detected, yawn_conf = False, 0.0 # disable yawn detection
 
             self.__add_ui_elements(annotated_frame, eye_results, is_drowsy, yawn_detected, yawn_conf)
             return {
