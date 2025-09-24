@@ -1,7 +1,4 @@
-try:
-    from tensorflow.keras import models
-except ImportError:
-    from keras import models
+from tensorflow.keras import models
 import os
 import numpy as np
 from PIL import Image
@@ -10,16 +7,17 @@ from PIL import Image
 current_dir = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(current_dir, 'models', 'model.keras')
 
-print(f"🔍 Looking for model at: {model_path}")
+print(f"Looking for model at: {model_path}")
 if not os.path.exists(model_path):
     raise FileNotFoundError(f"Model file not found at: {model_path}")
 
 eye_model = models.load_model(model_path)
-print(f"✅ Model loaded successfully from: {model_path}")
+print(f"Model loaded successfully from: {model_path}")
 
-img_path = os.path.join('data','path') # Import image to test
+# Example: path to an image for test purposes
+img_path = os.path.join('data', 'path')  # replace with a real image path
 img = Image.open(img_path)
-img = img.resize((80,80))
+img = img.resize((80, 80))
 img_array = np.array(img) / 255.0
 img_array = np.expand_dims(img_array, axis=0)
 
@@ -31,3 +29,4 @@ if result[0][0] >= 0.5:
 else:
     print('Dong')
     print(result[0][0])
+

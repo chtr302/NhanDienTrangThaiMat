@@ -102,7 +102,6 @@ class DriverMonitor:
             }
             
         except Exception as e:
-            print(f"process frame error: {e}")
             return {
                 'frame': frame,
                 'face_detected': False,

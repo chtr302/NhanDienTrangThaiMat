@@ -15,6 +15,9 @@ class EyeProcessor:
         self.skip_frame = 4
         self.frame_count = 0
         self.cached_predictions = None
+        
+        # Thêm biến để theo dõi trạng thái mắt
+        self.eyes_closed_detected = False  # Chỉ bắt đầu xử lý khi phát hiện mắt nhắm
 
     def __extract_eye_landmarks(self,frame_shape, face_landmarks, eye_type='left'):
         """
@@ -71,20 +74,50 @@ class EyeProcessor:
 
     def detect_eyes(self, frame, face_landmarks):
         """
+        Phát hiện trạng thái mắt từ frame
+        - Chỉ xử lý khi phát hiện mắt nhắm hoặc đã phát hiện mắt nhắm trước đó
+        - Sử dụng skip frame để tối ưu hiệu suất
         """
+        # Nếu chưa phát hiện mắt nhắm, luôn xử lý để kiểm tra
+        if not self.eyes_closed_detected:
+            # Xử lý đầy đủ để kiểm tra mắt nhắm
+            left_eye_landmarks = self.__extract_eye_landmarks(frame.shape, face_landmarks, eye_type='left')
+            left_img = self.__crop_eye_region(frame, left_eye_landmarks)
+            left_img = self.__process_eye(left_img)
+            left_eye_state, left_eye_confidence = self.__predict_eye_state(left_img)
+
+            right_eye_landmarks = self.__extract_eye_landmarks(frame.shape, face_landmarks, eye_type='right')
+            right_img = self.__crop_eye_region(frame, right_eye_landmarks)
+            right_img = self.__process_eye(right_img)
+            right_eye_state, right_eye_confidence = self.__predict_eye_state(right_img)
+            
+            # Kiểm tra nếu cả hai mắt đều nhắm
+            if left_eye_state == 'closed' and right_eye_state == 'closed':
+                self.eyes_closed_detected = True
+                print("Đã phát hiện mắt nhắm - bắt đầu theo dõi đầy đủ")
+            
+            results = (left_eye_state, right_eye_state, left_eye_confidence, right_eye_confidence)
+            self.cached_predictions = results
+            return results
+        
+        # Nếu đã phát hiện mắt nhắm, áp dụng cơ chế skip frame
         should_predict = (self.frame_count % (self.skip_frame + 1)) == 0
+        self.frame_count += 1
+        
         if not should_predict and self.cached_predictions is not None:
             return self.cached_predictions
         
+        # Xử lý đầy đủ
         left_eye_landmarks = self.__extract_eye_landmarks(frame.shape, face_landmarks, eye_type='left')
-        left_img = self.__crop_eye_region(frame,left_eye_landmarks)
+        left_img = self.__crop_eye_region(frame, left_eye_landmarks)
         left_img = self.__process_eye(left_img)
         left_eye_state, left_eye_confidence = self.__predict_eye_state(left_img)
 
         right_eye_landmarks = self.__extract_eye_landmarks(frame.shape, face_landmarks, eye_type='right')
-        right_img = self.__crop_eye_region(frame,right_eye_landmarks)
+        right_img = self.__crop_eye_region(frame, right_eye_landmarks)
         right_img = self.__process_eye(right_img)
         right_eye_state, right_eye_confidence = self.__predict_eye_state(right_img)
+        
         results = (left_eye_state, right_eye_state, left_eye_confidence, right_eye_confidence)
         self.cached_predictions = results
         return results

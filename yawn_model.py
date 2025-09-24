@@ -1,9 +1,5 @@
-try:
-    import tensorflow as tf
-    from tensorflow.keras.preprocessing.image import ImageDataGenerator
-except ImportError:
-    import keras as tf
-    from keras.preprocessing.image import ImageDataGenerator
+import keras._tf_keras.keras as tf
+from keras._tf_keras.keras.preprocessing.image import ImageDataGenerator
 import os
 
 BATCH_SIZE = 32
