@@ -5,7 +5,7 @@
 #     import keras as tf
 #     from keras.preprocessing.image import ImageDataGenerator
 from keras._tf_keras.keras.preprocessing.image import ImageDataGenerator
-import tensorflow as tf
+import keras as tf
 import os
 
 TRAIN_DIR = os.path.join('data', 'train')
