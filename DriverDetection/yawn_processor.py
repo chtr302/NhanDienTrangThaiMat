@@ -4,11 +4,27 @@ import cv2
 
 class YawnProcessor:
     def __init__(self, model_path='models/yawn_model.keras'):
-        # Load using tf.keras to be compatible with TF 2.x
-        self.model = keras_models.load_model(model_path)
+        try:
+            # Load using tf.keras to be compatible with TF 2.x
+            self.model = keras_models.load_model(model_path)
+            self.available = True
+        except Exception as e:
+            self.model = None
+            self.available = False
         self.input_shape = (80,80)
+        self.enabled = True  # Thêm trạng thái bật/tắt
+
+    def enable(self):
+        """Bật nhận diện ngáp"""
+        self.enabled = True
+
+    def disable(self):
+        """Tắt nhận diện ngáp"""
+        self.enabled = False
 
     def predict(self, face_img):
+        if not self.available or self.model is None or not self.enabled:
+            return False, 0.0
         # face_img: BGR image (numpy array), cropped to mouth/yawn region
         img = cv2.resize(face_img, self.input_shape)
         img = img.astype('float32') / 255.0

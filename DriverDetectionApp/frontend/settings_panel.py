@@ -100,6 +100,7 @@ class SettingsPanel(QFrame):
         yawn_toggle_layout = QHBoxLayout()
         yawn_toggle_layout.addWidget(QLabel("Nhận diện ngáp:"))
         self.yawn_enable_switch = ToggleSwitch()
+        self.yawn_enable_switch.setChecked(False)  # Mặc định OFF khi khởi tạo
         yawn_toggle_layout.addWidget(self.yawn_enable_switch)
         yawn_toggle_layout.addStretch()
         yawn_layout.addLayout(yawn_toggle_layout)
@@ -113,9 +114,21 @@ class SettingsPanel(QFrame):
         yawn_count_layout.addWidget(self.yawn_count_spin)
         yawn_layout.addLayout(yawn_count_layout)
 
+        # Nút reset số lần ngáp
+        self.reset_yawn_btn = QPushButton("Đặt lại số lần ngáp")
+        self.reset_yawn_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                font-weight: bold;
+                padding: 6px;
+            }
+        """)
+        yawn_layout.addWidget(self.reset_yawn_btn)
+
         # Thời gian reset (phút)
         yawn_reset_layout = QHBoxLayout()
-        yawn_reset_layout.addWidget(QLabel("Reset sau (phút):"))
+        yawn_reset_layout.addWidget(QLabel("Đặt lại sau (phút):"))
         self.yawn_reset_spin = QSpinBox()
         self.yawn_reset_spin.setRange(1, 60)
         self.yawn_reset_spin.setValue(10)

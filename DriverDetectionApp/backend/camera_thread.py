@@ -96,6 +96,8 @@ class CameraThread(QThread):
 
         # Yawn detection state
         self.yawn_enabled = False
+        self._pending_max_yawn_count = 5
+        self._pending_yawn_reset_minutes = 10
 
     # ---- Control helpers (thread-safe enough for simple flags) ----
     def toggle_detection_flag(self, flag_name: str):
@@ -150,6 +152,12 @@ class CameraThread(QThread):
 
             # Test model loading
             self.monitor = DriverMonitor()
+            # ĐỒNG BỘ TOÀN BỘ THÔNG SỐ NHẬN DIỆN NGÁP VÀO monitor
+            self.monitor.update_config(
+                enable_yawn_detection=self.yawn_enabled,
+                max_yawn_count=self._pending_max_yawn_count,
+                yawn_reset_minutes=self._pending_yawn_reset_minutes
+            )
             self._ai_loaded = True
             return True
 
@@ -246,10 +254,32 @@ class CameraThread(QThread):
             return False
         return hasattr(self.monitor.yawn_processor, 'available') and self.monitor.yawn_processor.available
 
+    def set_yawn_enabled(self, enabled: bool):
+        self.yawn_enabled = enabled
+        if self.monitor is not None:
+            self.monitor.update_config(enable_yawn_detection=enabled)
+
+    def set_max_yawn_count(self, value):
+        self._pending_max_yawn_count = value
+        if self.monitor is not None:
+            self.monitor.update_config(max_yawn_count=value)
+
+    def reset_yawn_count(self):
+        if self.monitor is not None:
+            self.monitor.reset_yawn_count()
+
+    def set_yawn_reset_minutes(self, value):
+        self._pending_yawn_reset_minutes = value
+        if self.monitor is not None:
+            self.monitor.update_config(yawn_reset_minutes=value)
+
     def start_camera(self):
         """Start camera thread"""
         # Attempt to load AI early to surface errors before entering run loop
         self.load_ai_modules()
+        # Luôn đồng bộ trạng thái yawn_enabled vào monitor
+        if self.monitor is not None:
+            self.monitor.update_config(enable_yawn_detection=self.yawn_enabled)
         self.running = True
         if not self.isRunning():
             self.start()
@@ -270,11 +300,16 @@ class CameraThread(QThread):
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
+        last_yawn_enabled = self.yawn_enabled  # Track last state
+
         while self.running:
             ret, frame = self.cap.read()
             if ret:
                 frame = cv2.flip(frame, 1)
-
+                # Chỉ update trạng thái yawn_enabled nếu có thay đổi
+                if self.monitor is not None and last_yawn_enabled != self.yawn_enabled:
+                    self.monitor.update_config(enable_yawn_detection=self.yawn_enabled)
+                    last_yawn_enabled = self.yawn_enabled
                 if ai_available and self.monitor:
                     try:
                         # Process frame with DriverMonitor (Ä‘Ã£ cÃ³ Ä‘áº§y Ä‘á»§ logic)

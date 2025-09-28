@@ -47,6 +47,14 @@ class MainWindow(QMainWindow):
         # Kết nối các nút với hàm xử lý
         self.settings_panel.start_btn.clicked.connect(self.start_camera)
         self.settings_panel.stop_btn.clicked.connect(self.stop_camera)
+        # Kết nối switch nhận diện ngáp
+        self.settings_panel.yawn_enable_switch.toggled.connect(self.on_yawn_switch_toggled)
+        # Kết nối thay đổi số lần ngáp tối đa
+        self.settings_panel.yawn_count_spin.valueChanged.connect(self.on_max_yawn_count_changed)
+        # Kết nối nút reset yawn count
+        self.settings_panel.reset_yawn_btn.clicked.connect(self.on_reset_yawn_count)
+        # Kết nối thay đổi thời gian reset yawn count
+        self.settings_panel.yawn_reset_spin.valueChanged.connect(self.on_yawn_reset_minutes_changed)
         
         # Hiển thị placeholder cho camera
         self.camera_panel.show_placeholder()
@@ -84,6 +92,32 @@ class MainWindow(QMainWindow):
         s_shortcut = QShortcut(QKeySequence("S"), self)
         s_shortcut.activated.connect(self.reset_alarm)
         
+    def on_yawn_switch_toggled(self, checked):
+        if self.camera_thread is not None:
+            self.camera_thread.set_yawn_enabled(checked)
+            # Đồng bộ số lần ngáp tối đa và phút reset khi bật ON
+            if checked:
+                self.camera_thread.set_max_yawn_count(self.settings_panel.yawn_count_spin.value())
+                self.camera_thread.set_yawn_reset_minutes(self.settings_panel.yawn_reset_spin.value())
+        # Disable/enable chỉnh số lần ngáp tối đa và thời gian reset khi bật/tắt nhận diện ngáp
+        self.settings_panel.yawn_count_spin.setEnabled(not checked)
+        self.settings_panel.yawn_reset_spin.setEnabled(not checked)
+
+    def on_max_yawn_count_changed(self, value):
+        """Cập nhật số lần ngáp tối đa vào DriverMonitor"""
+        if self.camera_thread is not None:
+            self.camera_thread.set_max_yawn_count(value)
+
+    def on_reset_yawn_count(self):
+        """Reset số lần ngáp về 0"""
+        if self.camera_thread is not None:
+            self.camera_thread.reset_yawn_count()
+
+    def on_yawn_reset_minutes_changed(self, value):
+        """Cập nhật thời gian reset yawn count vào DriverMonitor"""
+        if self.camera_thread is not None:
+            self.camera_thread.set_yawn_reset_minutes(value)
+
     def start_camera(self):
         """Bắt đầu camera và xử lý"""
         try:
@@ -99,10 +133,18 @@ class MainWindow(QMainWindow):
             # Kết nối tín hiệu từ camera thread
             self.camera_thread.frame_ready.connect(self.camera_panel.update_camera)
             self.camera_thread.error_occurred.connect(self.handle_error)
-            
-            # Bật nhận diện ngáp nếu có
-            self.camera_thread.yawn_enabled = self.settings_panel.yawn_enable_switch.isChecked()
-            
+
+            # --- ĐỒNG BỘ TOÀN BỘ THÔNG SỐ NHẬN DIỆN NGÁP TỪ UI ---
+            # Luôn cập nhật trạng thái bật/tắt, số lần ngáp tối đa, thời gian reset từ UI
+            self.camera_thread.set_yawn_enabled(self.settings_panel.yawn_enable_switch.isChecked())
+            self.camera_thread.set_max_yawn_count(self.settings_panel.yawn_count_spin.value())
+            self.camera_thread.set_yawn_reset_minutes(self.settings_panel.yawn_reset_spin.value())
+            # Cập nhật trạng thái enable/disable cho spinbox
+            is_on = self.settings_panel.yawn_enable_switch.isChecked()
+            self.settings_panel.yawn_count_spin.setEnabled(not is_on)
+            self.settings_panel.yawn_reset_spin.setEnabled(not is_on)
+            # ------------------------------------------------------
+
             # Cập nhật giao diện
             self.settings_panel.start_btn.setEnabled(False)
             self.settings_panel.stop_btn.setEnabled(True)
@@ -143,27 +185,6 @@ class MainWindow(QMainWindow):
         if self.camera_thread is not None and self.camera_thread.isRunning():
             self.camera_thread.reset_timer_and_alarm()
     
-    # Phương thức update_main_frame không còn cần thiết vì đã kết nối trực tiếp
-    
-    # @pyqtSlot(str)
-    # def handle_error(self, error_message):
-    #     """Xử lý lỗi từ camera thread"""
-    #     # Update status label
-    #     self.settings_panel.update_status("Lỗi AI: xem chi tiết", "error")
-
-    #     # Show a detailed dialog so user can see the exact error/traceback
-    #     try:
-    #         dlg = QMessageBox(self)
-    #         dlg.setIcon(QMessageBox.Icon.Critical)
-    #         dlg.setWindowTitle("Lỗi khởi tạo AI")
-    #         # Truncate excessive length visually but keep most details
-    #         shown = error_message if len(error_message) < 6000 else (error_message[:6000] + "\n... (rút gọn)")
-    #         dlg.setText("Không thể khởi tạo mô-đun AI.")
-    #         dlg.setDetailedText(shown)
-    #         dlg.setStandardButtons(QMessageBox.StandardButton.Ok)
-    #         dlg.exec_()
-    #     except Exception:
-    #         pass
     @pyqtSlot(str)
     def handle_error(self, error_message):
         """Xử lý lỗi từ camera thread"""
