@@ -1,10 +1,6 @@
-__pycache__/
 *.pyc
-*.pyo
-*.pyd
 .DS_Store
-.idea/
-.vscode/
-.env/
-*.log
-*.bak
+/__pycache__
+/.vscode
+data
+models/
