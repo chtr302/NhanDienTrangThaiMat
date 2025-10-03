@@ -36,6 +36,9 @@ class SettingsPanel(QFrame):
         # Nhóm cài đặt nhận diện mắt
         self.create_eye_group(layout)
 
+        # Kết nối signal cho eye threshold
+        self.eye_threshold_spin.valueChanged.connect(self.on_eye_threshold_changed)
+
         # Nhóm cài đặt nhận diện ngáp
         self.create_yawn_group(layout)
 
@@ -84,7 +87,7 @@ class SettingsPanel(QFrame):
         eye_threshold_layout = QHBoxLayout()
         eye_threshold_layout.addWidget(QLabel("Ngưỡng nhắm mắt (s):"))
         self.eye_threshold_spin = QSpinBox()
-        self.eye_threshold_spin.setRange(1, 10)
+        self.eye_threshold_spin.setRange(1, 2)
         self.eye_threshold_spin.setValue(2)
         eye_threshold_layout.addWidget(self.eye_threshold_spin)
         eye_layout.addLayout(eye_threshold_layout)
@@ -183,6 +186,14 @@ class SettingsPanel(QFrame):
         )
         if file_path:
             self.audio_file_label.setText(os.path.basename(file_path))
+            # Lưu đường dẫn đầy đủ để sử dụng sau này
+            self.audio_file_label.setProperty("full_path", file_path)
+
+    def on_eye_threshold_changed(self, value):
+        """Handle eye threshold change"""
+        # Emit signal to parent (MainWindow) to update camera thread
+        if hasattr(self.parent(), 'on_eye_threshold_changed'):
+            self.parent().on_eye_threshold_changed(value)
 
     def update_status(self, message, style="success"):
         """Cập nhật trạng thái hiển thị"""
