@@ -55,16 +55,16 @@ model = tf.models.Sequential([
     tf.layers.Flatten(),
     # Fully
     tf.layers.Dense(units=256, activation='relu'),
-    tf.layers.Dropout(0.3),
+    tf.layers.Dropout(0.5),
     tf.layers.Dense(units=128, activation='relu'),
-    tf.layers.Dropout(0.3),
+    tf.layers.Dropout(0.5),
     tf.layers.Dense(units=64, activation='relu'),
-    tf.layers.Dropout(0.3),
+    tf.layers.Dropout(0.5),
     # Output
     tf.layers.Dense(units=1, activation='sigmoid')
 ])
-optimizer = tf.optimizers.Adam(learning_rate=0.001)
-model.compile(optimizer=optimizer,loss='binary_crossentropy', metrics=['accuracy'])
+optimizer = tf.optimizers.Adam(learning_rate=0.0001)
+model.compile(optimizer=optimizer,loss='binary_crossentropy', metrics=['accuracy', tf.metrics.Precision(), tf.metrics.Recall()])
 
 # Callbacks
 early_stopping = tf.callbacks.EarlyStopping(
@@ -92,3 +92,57 @@ history = model.fit(
     epochs=24,
     callbacks=[early_stopping, model_checkpoint, reduce_lr]
 )
+
+# Đánh giá mô hình trên tập validation
+print("Đánh giá mô hình trên tập validation:")
+val_loss, val_acc, val_precision, val_recall = model.evaluate(validation_set)
+val_f1 = 2 * (val_precision * val_recall) / (val_precision + val_recall) if (val_precision + val_recall) > 0 else 0
+print(f"Validation Loss: {val_loss}")
+print(f"Validation Accuracy: {val_acc}")
+print(f"Validation Precision: {val_precision}")
+print(f"Validation Recall: {val_recall}")
+print(f"Validation F1-Score: {val_f1}")
+
+# Vẽ biểu đồ
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(12, 10))
+
+# Biểu đồ Accuracy
+plt.subplot(2, 2, 1)
+plt.plot(history.history['accuracy'], label='Training Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.title('Accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
+plt.legend()
+
+# Biểu đồ Loss
+plt.subplot(2, 2, 2)
+plt.plot(history.history['loss'], label='Training Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.title('Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
+
+# Biểu đồ Precision
+plt.subplot(2, 2, 3)
+plt.plot(history.history['precision'], label='Training Precision')
+plt.plot(history.history['val_precision'], label='Validation Precision')
+plt.title('Precision')
+plt.xlabel('Epochs')
+plt.ylabel('Precision')
+plt.legend()
+
+# Biểu đồ Recall
+plt.subplot(2, 2, 4)
+plt.plot(history.history['recall'], label='Training Recall')
+plt.plot(history.history['val_recall'], label='Validation Recall')
+plt.title('Recall')
+plt.xlabel('Epochs')
+plt.ylabel('Recall')
+plt.legend()
+
+plt.tight_layout()
+plt.show()
