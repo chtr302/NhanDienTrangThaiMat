@@ -39,7 +39,9 @@ class ToggleSwitch(QCheckBox):
         painter.setFont(QFont("Arial", 8, QFont.Weight.Bold))
         if self.isChecked():
             painter.drawText(8, 20, "BẬT")
+            painter.drawText(8, 20, "BẬT")
         else:
+            painter.drawText(38, 20, "TẮT")
             painter.drawText(38, 20, "TẮT")
 
     def animate_toggle(self):
@@ -47,6 +49,9 @@ class ToggleSwitch(QCheckBox):
         self.update()
 
     def mousePressEvent(self, event):
+        """Handle mouse click:"""
+        if self.isEnabled():
+            self.setChecked(not self.isChecked())
         """Handle mouse click:"""
         if self.isEnabled():
             self.setChecked(not self.isChecked())
