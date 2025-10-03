@@ -169,11 +169,14 @@ class DriverMonitor:
     def __process_eyes(self, frame, face):
         try:
             if face.multi_face_landmarks:
-                left_state, right_state, left_conf, right_conf = self.eye_processor.detect_eyes(frame, face.multi_face_landmarks[0])
+                # Do frame bị lật ngang, nên đổi thứ tự unpack để mắt trái/phải đúng
+                # eye_processor trả về (left_from_processor, right_from_processor)
+                # Nhưng do frame lật, left_from_processor thực chất là right_eye từ góc nhìn người dùng
+                right_state, left_state, right_conf, left_conf = self.eye_processor.detect_eyes(frame, face.multi_face_landmarks[0])
                 return {
                     'left_eye': {'state': left_state, 'confidence': left_conf},
                     'right_eye': {'state': right_state, 'confidence': right_conf},
-                    'closed': left_state == 'closed' and right_state == 'closed'
+                    'closed': left_state == 'closed' or right_state == 'closed'  # Chỉ cần 1 mắt nhắm
                 }
         except Exception as e:
             print(f"Eye processing error: {e}")
@@ -193,35 +196,21 @@ class DriverMonitor:
         time_text = f"Closed time: {self.eyes_closed_duration:.1f}s / {self.SLEEP_TH:.1f}s"
         cv2.putText(frame, time_text, (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
+        # Hiển thị thông tin ngáp và thời gian ngáp (đặt lệch dòng để tránh chồng chữ)
         yawn_text = f"Yawn: {yawn} ({yawn_conf:.2f}) | Yawn time: {self.yawn_duration:.1f}s"
-        cv2.putText(frame, yawn_text, (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+        cv2.putText(frame, yawn_text, (10, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+
 
         # Hiển thị số lần ngáp chỉ khi bật nhận diện ngáp
         if self.detection_config.get('enable_yawn_detection', True):
             # Lấy đúng giá trị max_yawn_count từ config
             max_yawn_count = self.detection_config.get('max_yawn_count', 5)
+            # Đếm số lần ngáp: đặt ở dòng dưới để không đè lên yawn_text
             yawn_count_text = f"Yawn count: {yawn_count}/{max_yawn_count}"
-            cv2.putText(frame, yawn_count_text, (10, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+            cv2.putText(frame, yawn_count_text, (10, 140), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
 
-        # Cảnh báo nếu vượt quá số lần ngáp tối đa
-        if yawn_count >= self.detection_config.get('max_yawn_count', 5):
-            cv2.putText(frame, "CANH BAO: Ban da ngap qua so lan toi da!", (10, 230), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 3)
-            # Hiển thị đếm ngược reset ở góc phải trên nhỏ
-            if yawn_reset_countdown is not None:
-                # Lấy đúng thời gian reset từ config
-                reset_minutes = self.detection_config.get('yawn_reset_minutes', 10)
-                mins = int(yawn_reset_countdown // 60)
-                secs = int(yawn_reset_countdown % 60)
-                countdown_text = f"Reset in: {mins:02d}:{secs:02d} (set: {reset_minutes}m)"
-                h, w = frame.shape[:2]
-                cv2.putText(frame, countdown_text, (w - 220, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-
-        if self.yawn_duration >= 2.0:
-            cv2.putText(frame, "Ban co dau hieu buon ngu!", (10, 170), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
-
-        if is_drowsy:
-            cv2.putText(frame, "Day di, day di!", (10, 140), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
+        # Cảnh báo nếu vượt quá số lần ngáp tối đa (logic giữ lại, hiển thị bằng popup)
+        # Không hiển thị text trên camera nữa
 
     def update_config(self, **kwargs):
         changed = False
@@ -244,6 +233,11 @@ class DriverMonitor:
             yawn_reset_minutes = self.detection_config.get('yawn_reset_minutes', kwargs.get('yawn_reset_minutes'))
             if self.yawn_count >= max_yawn_count:
                 self.yawn_reset_countdown = yawn_reset_minutes * 60
+
+        # Update SLEEP_TH if sleep_threshold is provided
+        if 'sleep_threshold' in kwargs:
+            self.SLEEP_TH = kwargs['sleep_threshold']
+            changed = True
     
     def reset_timer(self):
         """Reset timer"""
