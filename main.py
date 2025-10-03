@@ -51,7 +51,7 @@ def run_cli_mode(camera_id=0):
 
             frame = cv2.flip(frame, 1)
             try:
-                monitor.update_config(enable_yawn_detection = enable_yawn_detection)
+                monitor.update_config(enable_yawn_detection=enable_yawn_detection)
                 results = monitor.process_frame(frame)
                 controls = [
                     "q=quit, t=tesselation, c=contours, i=iris, p=preprocessing, r=reset, s=stop alarm, x=enable/disable yawn",
@@ -67,18 +67,17 @@ def run_cli_mode(camera_id=0):
                             cv2.FONT_HERSHEY_SIMPLEX, 0.7, yawn_color, 2)
 
                 for i, text in enumerate(controls):
-                    cv2.putText(results['frame'], text, 
-                               (10, results['frame'].shape[0] - 60 + i*20), 
+                    cv2.putText(results['frame'], text,
+                               (10, results['frame'].shape[0] - 60 + i*20),
                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
 
                 cv2.imshow('Driver Monitoring System', results['frame'])
-                
             except Exception as e:
                 print(f"Error processing frame: {e}")
                 cv2.imshow('Driver Monitoring System', frame)
 
             key = cv2.waitKey(1) & 0xFF
-            
+
             if key == ord('q'):
                 break
             elif key == ord('t'):
@@ -101,7 +100,6 @@ def run_cli_mode(camera_id=0):
             elif key == ord('x'):
                 enable_yawn_detection = not enable_yawn_detection
 
-        # Stop alarm - không có method này trong DriverMonitor
         cap.release()
         cv2.destroyAllWindows()
 

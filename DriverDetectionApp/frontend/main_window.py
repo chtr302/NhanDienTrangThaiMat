@@ -12,6 +12,7 @@ from PyQt5.QtGui import QKeySequence
 
 from .camera_panel import CameraPanel
 from .settings_panel import SettingsPanel
+from .alert_manager import AlertManager
 from ..backend.camera_thread import CameraThread
 
 
@@ -24,7 +25,12 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1000, 600)
         
         self.camera_thread = None
+        self.alert_manager = AlertManager(self)  # Quản lý cảnh báo tùy chỉnh
+
         self.init_ui()
+
+        # Lưu trữ các giá trị setting để đồng bộ khi camera khởi tạo (sau khi init_ui tạo settings_panel)
+        self.current_eye_threshold = float(self.settings_panel.eye_threshold_spin.value())
         self.setup_shortcuts()
         
     def init_ui(self):
@@ -37,7 +43,7 @@ class MainWindow(QMainWindow):
         main_layout = QHBoxLayout(central_widget)
         
         # Panel cài đặt (bên trái)
-        self.settings_panel = SettingsPanel()
+        self.settings_panel = SettingsPanel(self)
         main_layout.addWidget(self.settings_panel)
         
         # Panel camera (bên phải)
@@ -55,6 +61,8 @@ class MainWindow(QMainWindow):
         self.settings_panel.reset_yawn_btn.clicked.connect(self.on_reset_yawn_count)
         # Kết nối thay đổi thời gian reset yawn count
         self.settings_panel.yawn_reset_spin.valueChanged.connect(self.on_yawn_reset_minutes_changed)
+        # Kết nối âm thanh
+        self.settings_panel.audio_duration_spin.valueChanged.connect(self.on_audio_duration_changed)
         
         # Hiển thị placeholder cho camera
         self.camera_panel.show_placeholder()
@@ -99,9 +107,8 @@ class MainWindow(QMainWindow):
             if checked:
                 self.camera_thread.set_max_yawn_count(self.settings_panel.yawn_count_spin.value())
                 self.camera_thread.set_yawn_reset_minutes(self.settings_panel.yawn_reset_spin.value())
-        # Disable/enable chỉnh số lần ngáp tối đa và thời gian reset khi bật/tắt nhận diện ngáp
-        self.settings_panel.yawn_count_spin.setEnabled(not checked)
-        self.settings_panel.yawn_reset_spin.setEnabled(not checked)
+        # Enable/disable nút reset yawn dựa trên trạng thái switch
+        self.settings_panel.reset_yawn_btn.setEnabled(checked)
 
     def on_max_yawn_count_changed(self, value):
         """Cập nhật số lần ngáp tối đa vào DriverMonitor"""
@@ -118,6 +125,17 @@ class MainWindow(QMainWindow):
         if self.camera_thread is not None:
             self.camera_thread.set_yawn_reset_minutes(value)
 
+    def on_audio_duration_changed(self, value):
+        """Cập nhật thời gian âm thanh tối đa"""
+        if self.camera_thread is not None:
+            self.camera_thread.set_audio_duration(float(value))
+
+    def on_eye_threshold_changed(self, value):
+        """Cập nhật ngưỡng nhắm mắt"""
+        self.current_eye_threshold = float(value)  # Lưu trữ giá trị hiện tại
+        if self.camera_thread is not None:
+            self.camera_thread.set_eye_threshold(float(value))
+
     def start_camera(self):
         """Bắt đầu camera và xử lý"""
         try:
@@ -133,22 +151,36 @@ class MainWindow(QMainWindow):
             # Kết nối tín hiệu từ camera thread
             self.camera_thread.frame_ready.connect(self.camera_panel.update_camera)
             self.camera_thread.error_occurred.connect(self.handle_error)
+            self.camera_thread.alert_triggered.connect(self.handle_alert)
 
-            # --- ĐỒNG BỘ TOÀN BỘ THÔNG SỐ NHẬN DIỆN NGÁP TỪ UI ---
+            # --- ĐỒNG BỘ TOÀN BỘ THÔNG SỐ TỪ UI ---
+            # Cập nhật ngưỡng nhắm mắt (sử dụng giá trị đã lưu)
+            self.camera_thread.set_eye_threshold(self.current_eye_threshold)
+            # Đồng bộ với UI hiện tại
+            self.camera_thread._pending_eye_threshold = self.current_eye_threshold
             # Luôn cập nhật trạng thái bật/tắt, số lần ngáp tối đa, thời gian reset từ UI
             self.camera_thread.set_yawn_enabled(self.settings_panel.yawn_enable_switch.isChecked())
             self.camera_thread.set_max_yawn_count(self.settings_panel.yawn_count_spin.value())
             self.camera_thread.set_yawn_reset_minutes(self.settings_panel.yawn_reset_spin.value())
-            # Cập nhật trạng thái enable/disable cho spinbox
-            is_on = self.settings_panel.yawn_enable_switch.isChecked()
-            self.settings_panel.yawn_count_spin.setEnabled(not is_on)
-            self.settings_panel.yawn_reset_spin.setEnabled(not is_on)
+
+            # Cập nhật cài đặt âm thanh
+            audio_file_full_path = self.settings_panel.audio_file_label.property("full_path")
+            if audio_file_full_path:
+                self.camera_thread.set_audio_file(audio_file_full_path)
+            else:
+                # Fallback to default alarm.wav in project root
+                default_audio = os.path.join(os.getcwd(), "alarm.wav")
+                self.camera_thread.set_audio_file(default_audio)
+            self.camera_thread.set_audio_duration(float(self.settings_panel.audio_duration_spin.value()))
             # ------------------------------------------------------
 
-            # Cập nhật giao diện
+            # Cập nhật giao diện - khóa các settings khi camera đang chạy
             self.settings_panel.start_btn.setEnabled(False)
             self.settings_panel.stop_btn.setEnabled(True)
             self.settings_panel.update_status("Đang xử lý...", "success")
+
+            # Khóa tất cả các controls trong settings khi camera đang chạy
+            self.lock_settings_controls(True)
             
             # Bắt đầu thread
             self.camera_thread.start_camera()
@@ -159,13 +191,20 @@ class MainWindow(QMainWindow):
     def stop_camera(self):
         """Dừng camera và xử lý"""
         if self.camera_thread is not None and self.camera_thread.isRunning():
+            try:
+                self.camera_thread.frame_ready.disconnect(self.camera_panel.update_camera)
+            except Exception:
+                pass
             self.camera_thread.stop_camera()
             self.camera_thread = None
             
-            # Cập nhật giao diện
+            # Cập nhật giao diện - mở khóa các settings khi camera dừng
             self.settings_panel.start_btn.setEnabled(True)
             self.settings_panel.stop_btn.setEnabled(False)
             self.settings_panel.update_status("Đã dừng", "warning")
+
+            # Mở khóa tất cả các controls trong settings khi camera dừng
+            self.lock_settings_controls(False)
             
             # Hiển thị placeholder
             self.camera_panel.show_placeholder()
@@ -185,6 +224,12 @@ class MainWindow(QMainWindow):
         if self.camera_thread is not None and self.camera_thread.isRunning():
             self.camera_thread.reset_timer_and_alarm()
     
+    @pyqtSlot(str, str)
+    def handle_alert(self, alert_type, message):
+        """Xử lý cảnh báo từ camera thread"""
+        # Hiển thị cảnh báo tùy chỉnh với animation
+        self.alert_manager.show_alert(alert_type, message)
+
     @pyqtSlot(str)
     def handle_error(self, error_message):
         """Xử lý lỗi từ camera thread"""
@@ -206,12 +251,34 @@ class MainWindow(QMainWindow):
             print(f"Lỗi khi in ra terminal: {e}", file=sys.stderr)
         
         
+    def lock_settings_controls(self, lock: bool):
+        """Khóa/mở khóa các controls trong settings panel"""
+        # Khóa các controls âm thanh
+        self.settings_panel.audio_browse_btn.setEnabled(not lock)
+        self.settings_panel.audio_duration_spin.setEnabled(not lock)
+
+        # Khóa các controls mắt
+        self.settings_panel.eye_threshold_spin.setEnabled(not lock)
+
+        # Khóa các controls ngáp khi camera đang chạy
+        self.settings_panel.yawn_enable_switch.setEnabled(not lock)  # Switch cũng bị khóa khi chạy
+        self.settings_panel.yawn_count_spin.setEnabled(not lock)
+        self.settings_panel.yawn_reset_spin.setEnabled(not lock)
+        # Nút reset yawn được enable nếu switch ngáp được bật, bất kể camera có chạy hay không
+        self.settings_panel.reset_yawn_btn.setEnabled(self.settings_panel.yawn_enable_switch.isChecked())
+
+    def resizeEvent(self, event):
+        """Xử lý sự kiện thay đổi kích thước cửa sổ"""
+        # Cập nhật vị trí các alert khi cửa sổ thay đổi kích thước
+        self.alert_manager.update_positions_on_resize()
+        super().resizeEvent(event)
+
     def closeEvent(self, event):
         """Xử lý sự kiện đóng cửa sổ"""
         # Dừng camera thread nếu đang chạy
         if self.camera_thread is not None and self.camera_thread.isRunning():
             self.camera_thread.stop_camera()
-        
+
         # Chấp nhận sự kiện đóng
         event.accept()
 

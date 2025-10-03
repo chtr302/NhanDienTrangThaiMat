@@ -1,10 +1,11 @@
-﻿"""
+"""
 Camera Thread  camera và kết nối với DriverMonitor
 """
 
 import cv2
 import numpy as np
 from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtWidgets import QMessageBox
 import traceback
 import os
 import sys
@@ -12,6 +13,8 @@ import platform
 from pathlib import Path
 from importlib.util import find_spec
 import importlib
+
+from .audio_manager import AudioManager, AlertType
 
 
 def _prepare_mediapipe_environment():
@@ -84,6 +87,7 @@ class CameraThread(QThread):
 
     frame_ready = pyqtSignal(np.ndarray)
     error_occurred = pyqtSignal(str)
+    alert_triggered = pyqtSignal(str, str)  # (alert_type, message)
 
     def __init__(self, camera_id=0):
         super().__init__()
@@ -98,6 +102,15 @@ class CameraThread(QThread):
         self.yawn_enabled = False
         self._pending_max_yawn_count = 5
         self._pending_yawn_reset_minutes = 10
+        
+        # Eye threshold
+        self._pending_eye_threshold = 2.0  # Default threshold
+
+        # Audio manager for alerts
+        self.audio_manager = AudioManager()
+        self.last_drowsy_alert = False
+        self.last_yawn_alert = False
+        self.last_max_yawn_alert = False
 
     # ---- Control helpers (thread-safe enough for simple flags) ----
     def toggle_detection_flag(self, flag_name: str):
@@ -156,7 +169,8 @@ class CameraThread(QThread):
             self.monitor.update_config(
                 enable_yawn_detection=self.yawn_enabled,
                 max_yawn_count=self._pending_max_yawn_count,
-                yawn_reset_minutes=self._pending_yawn_reset_minutes
+                yawn_reset_minutes=self._pending_yawn_reset_minutes,
+                sleep_threshold=self._pending_eye_threshold  # Apply pending eye threshold
             )
             self._ai_loaded = True
             return True
@@ -273,6 +287,20 @@ class CameraThread(QThread):
         if self.monitor is not None:
             self.monitor.update_config(yawn_reset_minutes=value)
 
+    def set_audio_file(self, file_path: str):
+        """Set audio file for alerts"""
+        self.audio_manager.set_audio_file(file_path, AlertType.GENERAL)
+
+    def set_audio_duration(self, duration: float):
+        """Set maximum audio duration"""
+        self.audio_manager.set_max_duration(duration)
+
+    def set_eye_threshold(self, threshold: float):
+        """Set eye closure threshold (seconds)"""
+        self._pending_eye_threshold = threshold  # Lưu trữ giá trị để apply khi monitor được tạo
+        if self.monitor is not None:
+            self.monitor.update_config(sleep_threshold=threshold)
+
     def start_camera(self):
         """Start camera thread"""
         # Attempt to load AI early to surface errors before entering run loop
@@ -315,6 +343,36 @@ class CameraThread(QThread):
                         # Process frame with DriverMonitor (Ä‘Ã£ cÃ³ Ä‘áº§y Ä‘á»§ logic)
                         results = self.monitor.process_frame(frame)
 
+                        # Check for alerts and play audio + show dialog
+                        if 'is_drowsy' in results and results['is_drowsy']:
+                            if not self.last_drowsy_alert:
+                                self.audio_manager.play_alert(AlertType.DROWSY)
+                                self.alert_triggered.emit("DROWSY", "CẢNH BÁO: Phát hiện buồn ngủ! Hãy nghỉ ngơi.")
+                                self.last_drowsy_alert = True
+                        else:
+                            self.last_drowsy_alert = False
+
+                        if 'yawn_alert' in results and results['yawn_alert']:
+                            if not self.last_yawn_alert:
+                                self.audio_manager.play_alert(AlertType.YAWN)
+                                self.alert_triggered.emit("YAWN", "CẢNH BÁO: Phát hiện ngáp! Hãy nghỉ ngơi.")
+                                self.last_yawn_alert = True
+                        else:
+                            self.last_yawn_alert = False
+
+                        # Kiểm tra cảnh báo vượt quá số lần ngáp tối đa
+                        if ('yawn_count' in results and 'max_yawn_count' in results and
+                            results['yawn_count'] >= results['max_yawn_count']):
+                            # Chỉ cảnh báo một lần khi vượt quá, không cảnh báo liên tục
+                            if not self.last_max_yawn_alert:
+                                self.audio_manager.play_alert(AlertType.GENERAL)
+                                self.alert_triggered.emit("GENERAL",
+                                    f"CẢNH BÁO: Bạn đã ngáp quá {results['max_yawn_count']} lần! Hãy nghỉ ngơi.")
+                                self.last_max_yawn_alert = True
+                        else:
+                            # Reset flag khi không còn vượt quá
+                            self.last_max_yawn_alert = False
+
                         # Emit processed frame
                         self.frame_ready.emit(results['frame'])
 
@@ -330,7 +388,3 @@ class CameraThread(QThread):
 
         if self.cap:
             self.cap.release()
-
-
-
-
