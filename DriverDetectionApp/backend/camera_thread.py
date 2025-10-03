@@ -1,4 +1,4 @@
-"""
+﻿"""
 Camera Thread  camera và kết nối với DriverMonitor
 """
 
@@ -83,8 +83,8 @@ def _diagnose_mediapipe_bindings():
 
 
 class CameraThread(QThread):
-    """Thread xá»­ lÃ½ camera vÃ  káº¿t ná»‘i vá»›i DriverMonitor"""
-
+    """Thread xử lý camera và kết nối với DriverMonitor"""
+    
     frame_ready = pyqtSignal(np.ndarray)
     error_occurred = pyqtSignal(str)
     alert_triggered = pyqtSignal(str, str)  # (alert_type, message)
@@ -142,6 +142,11 @@ class CameraThread(QThread):
             if self.monitor is None:
                 return
             self.monitor.reset_timer()
+            # Stop any playing audio immediately
+            try:
+                self.audio_manager.stop_all_alerts()
+            except Exception:
+                pass
         except Exception as e:
             pass
 
@@ -165,7 +170,7 @@ class CameraThread(QThread):
 
             # Test model loading
             self.monitor = DriverMonitor()
-            # ĐỒNG BỘ TOÀN BỘ THÔNG SỐ NHẬN DIỆN NGÁP VÀO monitor
+            # Đồng bộ toàn bộ thông số nhận diện ngủ vào monitor
             self.monitor.update_config(
                 enable_yawn_detection=self.yawn_enabled,
                 max_yawn_count=self._pending_max_yawn_count,
@@ -340,39 +345,48 @@ class CameraThread(QThread):
                     last_yawn_enabled = self.yawn_enabled
                 if ai_available and self.monitor:
                     try:
-                        # Process frame with DriverMonitor (Ä‘Ã£ cÃ³ Ä‘áº§y Ä‘á»§ logic)
+                        # Process frame with DriverMonitor (có ý nghĩa logic)
                         results = self.monitor.process_frame(frame)
 
-                        # Check for alerts and play audio + show dialog
-                        if 'is_drowsy' in results and results['is_drowsy']:
+                        # Decide a single alert to play (priority: DROWSY > YAWN > GENERAL)
+                        alert_to_emit = None
+                        alert_message = None
+
+                        if results.get('is_drowsy'):
                             if not self.last_drowsy_alert:
-                                self.audio_manager.play_alert(AlertType.DROWSY)
-                                self.alert_triggered.emit("DROWSY", "CẢNH BÁO: Phát hiện buồn ngủ! Hãy nghỉ ngơi.")
+                                alert_to_emit = AlertType.DROWSY
+                                alert_message = "CANH BAO: Phat hien buon ngu! Hay nghi ngoi."
                                 self.last_drowsy_alert = True
                         else:
                             self.last_drowsy_alert = False
 
-                        if 'yawn_alert' in results and results['yawn_alert']:
+                        yawn_alert = bool(results.get('yawn')) and float(results.get('yawn_duration', 0.0)) >= 2.0
+                        if alert_to_emit is None and yawn_alert:
                             if not self.last_yawn_alert:
-                                self.audio_manager.play_alert(AlertType.YAWN)
-                                self.alert_triggered.emit("YAWN", "CẢNH BÁO: Phát hiện ngáp! Hãy nghỉ ngơi.")
+                                alert_to_emit = AlertType.YAWN
+                                alert_message = "CANH BAO: Phat hien ngap! Hay nghi ngoi."
                                 self.last_yawn_alert = True
                         else:
                             self.last_yawn_alert = False
 
-                        # Kiểm tra cảnh báo vượt quá số lần ngáp tối đa
-                        if ('yawn_count' in results and 'max_yawn_count' in results and
-                            results['yawn_count'] >= results['max_yawn_count']):
-                            # Chỉ cảnh báo một lần khi vượt quá, không cảnh báo liên tục
+                        if alert_to_emit is None and (
+                            ('yawn_count' in results and 'max_yawn_count' in results and results['yawn_count'] >= results['max_yawn_count'])
+                        ):
                             if not self.last_max_yawn_alert:
-                                self.audio_manager.play_alert(AlertType.GENERAL)
-                                self.alert_triggered.emit("GENERAL",
-                                    f"CẢNH BÁO: Bạn đã ngáp quá {results['max_yawn_count']} lần! Hãy nghỉ ngơi.")
+                                alert_to_emit = AlertType.GENERAL
+                                alert_message = f"CANH BAO: Ban da ngap qua {results['max_yawn_count']} lan! Hay nghi ngoi."
                                 self.last_max_yawn_alert = True
                         else:
-                            # Reset flag khi không còn vượt quá
                             self.last_max_yawn_alert = False
 
+                        if alert_to_emit is not None:
+                            try:
+                                self.audio_manager.play_alert(alert_to_emit)
+                                self.alert_triggered.emit(alert_to_emit.value.upper(), alert_message)
+                            except Exception:
+                                pass
+
+                        # Emit processed frame
                         # Emit processed frame
                         self.frame_ready.emit(results['frame'])
 

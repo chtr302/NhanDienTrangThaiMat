@@ -1,5 +1,5 @@
 """
-Main Window cho ứng dụng nhận diện ngủ gật
+Main Window cho ứng dụng nhận diện trạng thái mắt
 """
 
 import sys
@@ -21,7 +21,7 @@ class MainWindow(QMainWindow):
     
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Hệ Thống Nhận Diện Ngủ Gật")
+        self.setWindowTitle("Hệ Thống Nhận Diện Trạng Thái Mắt")
         self.setMinimumSize(1000, 600)
         
         self.camera_thread = None
