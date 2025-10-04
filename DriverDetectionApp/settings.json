@@ -1,8 +1,0 @@
-{
-    "eye_threshold": 2,
-    "yawn_enabled": false,
-    "yawn_max_count": 5,
-    "yawn_reset_minutes": 10,
-    "audio_duration": 10,
-    "audio_file": null
-}
