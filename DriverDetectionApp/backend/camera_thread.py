@@ -320,6 +320,10 @@ class CameraThread(QThread):
     def stop_camera(self):
         """Stop camera thread"""
         self.running = False
+        try:
+            self.audio_manager.stop_all_alerts()
+        except Exception:
+            pass
         if self.cap:
             self.cap.release()
         self.wait()
