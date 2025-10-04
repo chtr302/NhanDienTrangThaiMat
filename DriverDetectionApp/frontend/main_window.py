@@ -4,6 +4,7 @@ Main Window cho ứng dụng nhận diện trạng thái mắt
 
 import sys
 import os
+import json
 import numpy as np
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QHBoxLayout, QWidget, 
                             QMessageBox, QShortcut)
@@ -26,8 +27,10 @@ class MainWindow(QMainWindow):
         
         self.camera_thread = None
         self.alert_manager = AlertManager(self)  # Quản lý cảnh báo tùy chỉnh
+        self.settings_file = "settings.json"
 
         self.init_ui()
+        self.load_settings()
 
         # Lưu trữ các giá trị setting để đồng bộ khi camera khởi tạo (sau khi init_ui tạo settings_panel)
         self.current_eye_threshold = float(self.settings_panel.eye_threshold_spin.value())
@@ -63,6 +66,8 @@ class MainWindow(QMainWindow):
         self.settings_panel.yawn_reset_spin.valueChanged.connect(self.on_yawn_reset_minutes_changed)
         # Kết nối âm thanh
         self.settings_panel.audio_duration_spin.valueChanged.connect(self.on_audio_duration_changed)
+        # Kết nối ngưỡng mắt
+        self.settings_panel.eye_threshold_spin.valueChanged.connect(self.on_eye_threshold_changed)
         
         # Hiển thị placeholder cho camera
         self.camera_panel.show_placeholder()
@@ -109,11 +114,13 @@ class MainWindow(QMainWindow):
                 self.camera_thread.set_yawn_reset_minutes(self.settings_panel.yawn_reset_spin.value())
         # Enable/disable nút reset yawn dựa trên trạng thái switch
         self.settings_panel.reset_yawn_btn.setEnabled(checked)
+        self.save_settings()
 
     def on_max_yawn_count_changed(self, value):
         """Cập nhật số lần ngáp tối đa vào DriverMonitor"""
         if self.camera_thread is not None:
             self.camera_thread.set_max_yawn_count(value)
+        self.save_settings()
 
     def on_reset_yawn_count(self):
         """Reset số lần ngáp về 0"""
@@ -124,17 +131,20 @@ class MainWindow(QMainWindow):
         """Cập nhật thời gian reset yawn count vào DriverMonitor"""
         if self.camera_thread is not None:
             self.camera_thread.set_yawn_reset_minutes(value)
+        self.save_settings()
 
     def on_audio_duration_changed(self, value):
         """Cập nhật thời gian âm thanh tối đa"""
         if self.camera_thread is not None:
             self.camera_thread.set_audio_duration(float(value))
+        self.save_settings()
 
     def on_eye_threshold_changed(self, value):
         """Cập nhật ngưỡng nhắm mắt"""
         self.current_eye_threshold = float(value)  # Lưu trữ giá trị hiện tại
         if self.camera_thread is not None:
             self.camera_thread.set_eye_threshold(float(value))
+        self.save_settings()
 
     def start_camera(self):
         """Bắt đầu camera và xử lý"""
@@ -267,6 +277,45 @@ class MainWindow(QMainWindow):
         # Nút reset yawn được enable nếu switch ngáp được bật, bất kể camera có chạy hay không
         self.settings_panel.reset_yawn_btn.setEnabled(self.settings_panel.yawn_enable_switch.isChecked())
 
+    def save_settings(self):
+        """Lưu cài đặt hiện tại vào file JSON"""
+        settings = {
+            "eye_threshold": self.settings_panel.eye_threshold_spin.value(),
+            "yawn_enabled": self.settings_panel.yawn_enable_switch.isChecked(),
+            "yawn_max_count": self.settings_panel.yawn_count_spin.value(),
+            "yawn_reset_minutes": self.settings_panel.yawn_reset_spin.value(),
+            "audio_duration": self.settings_panel.audio_duration_spin.value(),
+            "audio_file": self.settings_panel.audio_file_label.property("full_path")
+        }
+        try:
+            settings_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__),"..","settings.json"))
+            with open(settings_file_path, 'w') as f:
+                json.dump(settings, f, indent=4)
+        except Exception as e:
+            print(f"Lỗi khi lưu cài đặt: {e}", file=sys.stderr)
+
+    def load_settings(self):
+        """Tải cài đặt từ file JSON và áp dụng vào UI"""
+        try:
+            settings_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__),"..","settings.json"))
+            if os.path.exists(settings_file_path):
+                with open(settings_file_path, 'r') as f:
+                    settings = json.load(f)
+                    
+                self.settings_panel.eye_threshold_spin.setValue(settings.get("eye_threshold", 2))
+                self.settings_panel.yawn_enable_switch.setChecked(settings.get("yawn_enabled", False))
+                self.settings_panel.yawn_count_spin.setValue(settings.get("yawn_max_count", 5))
+                self.settings_panel.yawn_reset_spin.setValue(settings.get("yawn_reset_minutes", 10))
+                self.settings_panel.audio_duration_spin.setValue(settings.get("audio_duration", 10))
+                
+                audio_file = settings.get("audio_file")
+                if audio_file and os.path.exists(audio_file):
+                    self.settings_panel.audio_file_label.setText(os.path.basename(audio_file))
+                    self.settings_panel.audio_file_label.setProperty("full_path", audio_file)
+
+        except Exception as e:
+            print(f"Lỗi khi tải cài đặt: {e}", file=sys.stderr)
+
     def resizeEvent(self, event):
         """Xử lý sự kiện thay đổi kích thước cửa sổ"""
         # Cập nhật vị trí các alert khi cửa sổ thay đổi kích thước
@@ -275,6 +324,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """Xử lý sự kiện đóng cửa sổ"""
+        self.save_settings()
         # Dừng camera thread nếu đang chạy
         if self.camera_thread is not None and self.camera_thread.isRunning():
             self.camera_thread.stop_camera()
