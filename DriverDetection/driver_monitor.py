@@ -64,6 +64,23 @@ class DriverMonitor:
     def process_frame(self, frame):
         try:
             frame_results = self.frame_processor.process_frame(frame, self.detection_config['use_preprocessing'])
+
+            if not frame_results or not frame_results.multi_face_landmarks:
+                self.__update_eyes_closed_time(False)
+                self.__update_yawn_time(False)
+                return {
+                    'frame': frame,
+                    'face_detected': False,
+                    'eye_results': {'left_eye': {'state': 'not_detected', 'confidence': 0.0}, 'right_eye': {'state': 'not_detected', 'confidence': 0.0}, 'closed': False},
+                    'is_drowsy': False,
+                    'closed_duration': 0.0,
+                    'yawn': False,
+                    'yawn_conf': 0.0,
+                    'yawn_duration': 0.0,
+                    'yawn_count': self.yawn_count,
+                    'max_yawn_count': self.detection_config.get('max_yawn_count', 5)
+                }
+
             annotated_frame = self.frame_processor.draw_landmarks(
                 frame,
                 frame_results,
