@@ -308,11 +308,7 @@ class CameraThread(QThread):
 
     def start_camera(self):
         """Start camera thread"""
-        # Attempt to load AI early to surface errors before entering run loop
-        self.load_ai_modules()
-        # Luôn đồng bộ trạng thái yawn_enabled vào monitor
-        if self.monitor is not None:
-            self.monitor.update_config(enable_yawn_detection=self.yawn_enabled)
+        # Không tải AI ở đây nữa. Chỉ khởi chạy luồng.
         self.running = True
         if not self.isRunning():
             self.start()
@@ -330,7 +326,7 @@ class CameraThread(QThread):
 
     def run(self):
         """Main camera processing loop"""
-        # Try to load AI modules
+        # Tải AI ở đây, bên trong luồng nền
         ai_available = self.load_ai_modules()
 
         self.cap = cv2.VideoCapture(self.camera_id)
@@ -343,19 +339,22 @@ class CameraThread(QThread):
             ret, frame = self.cap.read()
             if ret:
                 frame = cv2.flip(frame, 1)
-                # Chỉ update trạng thái yawn_enabled nếu có thay đổi
-                if self.monitor is not None and last_yawn_enabled != self.yawn_enabled:
-                    self.monitor.update_config(enable_yawn_detection=self.yawn_enabled)
-                    last_yawn_enabled = self.yawn_enabled
+                
                 if ai_available and self.monitor:
                     try:
-                        # Process frame with DriverMonitor (có ý nghĩa logic)
+                        # Đồng bộ trạng thái yawn_enabled nếu có thay đổi
+                        if last_yawn_enabled != self.yawn_enabled:
+                            self.monitor.update_config(enable_yawn_detection=self.yawn_enabled)
+                            last_yawn_enabled = self.yawn_enabled
+
+                        # Process frame with DriverMonitor
                         results = self.monitor.process_frame(frame)
 
-                        # Decide a single alert to play (priority: DROWSY > YAWN > GENERAL)
+                        # Ưu tiên cảnh báo: BUỒN NGỦ > ĐẾM SỐ LẦN NGÁP
                         alert_to_emit = None
                         alert_message = None
 
+                        # 1. Kiểm tra cảnh báo buồn ngủ (mắt nhắm lâu)
                         if results.get('is_drowsy'):
                             if not self.last_drowsy_alert:
                                 alert_to_emit = AlertType.DROWSY
@@ -364,15 +363,7 @@ class CameraThread(QThread):
                         else:
                             self.last_drowsy_alert = False
 
-                        yawn_alert = bool(results.get('yawn')) and float(results.get('yawn_duration', 0.0)) >= 2.0
-                        if alert_to_emit is None and yawn_alert:
-                            if not self.last_yawn_alert:
-                                alert_to_emit = AlertType.YAWN
-                                alert_message = "CANH BAO: Phat hien ngap! Hay nghi ngoi."
-                                self.last_yawn_alert = True
-                        else:
-                            self.last_yawn_alert = False
-
+                        # 2. Kiểm tra cảnh báo SỐ LẦN NGÁP VƯỢT NGƯỠNG
                         if alert_to_emit is None and (
                             ('yawn_count' in results and 'max_yawn_count' in results and results['yawn_count'] >= results['max_yawn_count'])
                         ):
@@ -383,6 +374,7 @@ class CameraThread(QThread):
                         else:
                             self.last_max_yawn_alert = False
 
+                        # Phát âm thanh và gửi tín hiệu nếu có cảnh báo
                         if alert_to_emit is not None:
                             try:
                                 self.audio_manager.play_alert(alert_to_emit)
@@ -390,7 +382,6 @@ class CameraThread(QThread):
                             except Exception:
                                 pass
 
-                        # Emit processed frame
                         # Emit processed frame
                         self.frame_ready.emit(results['frame'])
 
@@ -400,7 +391,8 @@ class CameraThread(QThread):
                                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
                         self.frame_ready.emit(frame)
                 else:
-                    # AI not available -> emit raw frame (camera preview)
+                    # AI not available or loading -> show loading message
+                    cv2.putText(frame, "Loading AI models...", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
                     self.frame_ready.emit(frame)
             self.msleep(33)  # ~30 FPS
 
