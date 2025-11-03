@@ -193,7 +193,7 @@ class DriverMonitor:
                 return {
                     'left_eye': {'state': left_state, 'confidence': left_conf},
                     'right_eye': {'state': right_state, 'confidence': right_conf},
-                    'closed': left_state == 'closed' or right_state == 'closed'  # Chỉ cần 1 mắt nhắm
+                    'closed': left_state == 'closed' and right_state == 'closed'
                 }
         except Exception as e:
             print(f"Eye processing error: {e}")
