@@ -1,6 +1,3 @@
-"""
-UI Components cho giao diện người dùng
-"""
 
 from PyQt5.QtWidgets import (QCheckBox, QLabel, QFrame, QPushButton,
                              QHBoxLayout, QVBoxLayout, QWidget)
@@ -83,25 +80,22 @@ class AlertWidget(QFrame):
         self._setup_animation()
         self._setup_timer()
 
-        # Start show animation
-        self.show_animation.start()
-
     def _setup_colors(self):
         """Thiết lập màu sắc theo loại cảnh báo"""
         if self.alert_type == "DROWSY":
-            self.border_color = QColor(255, 87, 34)  # Deep Orange
-            self.bg_color = QColor(255, 243, 224)    # Light Orange
-            self.text_color = QColor(191, 54, 12)    # Dark Orange
+            self.border_color = QColor(211, 47, 47)   # Red
+            self.bg_color = QColor(255, 235, 238)     # Light Red
+            self.text_color = QColor(198, 40, 40)     # Dark Red
             self.icon_text = "😴"
-        elif self.alert_type == "YAWN":
-            self.border_color = QColor(156, 39, 176)  # Purple
-            self.bg_color = QColor(243, 229, 245)    # Light Purple
-            self.text_color = QColor(106, 27, 154)   # Dark Purple
-            self.icon_text = "🥱"
-        else:
-            self.border_color = QColor(255, 193, 7)  # Amber
+        elif self.alert_type == "YAWN": # Giữ lại để tương thích, cũng đổi sang vàng
+            self.border_color = QColor(255, 179, 0)  # Amber
             self.bg_color = QColor(255, 248, 225)    # Light Amber
-            self.text_color = QColor(183, 137, 5)    # Dark Amber
+            self.text_color = QColor(255, 143, 0)    # Dark Amber
+            self.icon_text = "🥱"
+        else: # GENERAL - Dùng cho cảnh báo đếm số lần ngáp
+            self.border_color = QColor(255, 179, 0)  # Amber
+            self.bg_color = QColor(255, 248, 225)    # Light Amber
+            self.text_color = QColor(255, 143, 0)    # Dark Amber
             self.icon_text = "⚠️"
 
     def _setup_ui(self):

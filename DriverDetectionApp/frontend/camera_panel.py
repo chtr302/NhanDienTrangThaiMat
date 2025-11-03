@@ -4,7 +4,8 @@ Camera Panel cho hiển thị camera và kết quả AI
 
 import numpy as np
 import cv2
-from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QLabel, QGroupBox)
+import os
+from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QLabel, QGroupBox, QWidget)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QImage, QPixmap
 
@@ -27,11 +28,15 @@ class CameraPanel(QFrame):
     def create_main_camera_group(self, parent_layout):
         """Tạo nhóm camera chính hiển thị kết quả nhận diện"""
         camera_group = QGroupBox("Nhận Diện Trạng Thái Tài Xế")
+        camera_group.setStyleSheet(
+            "QGroupBox { background-color: white; border: 2px solid rgb(200, 200, 200); border-radius: 8px; margin-top: 1ex; padding-top: 15px; } "
+            "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 0 5px; background-color: white; color: rgb(80, 80, 80); font-weight: bold; }"
+        )
         camera_layout = QVBoxLayout(camera_group)
 
         self.main_camera_label = QLabel()
         self.main_camera_label.setMinimumSize(640, 480)
-        self.main_camera_label.setStyleSheet("QLabel { border: 2px solid #ddd; background-color: #f8f8f8; border-radius: 8px; }")
+        self.main_camera_label.setStyleSheet("QLabel { background-color: white; border-radius: 8px; }")
         self.main_camera_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.main_camera_label.clear()
         camera_layout.addWidget(self.main_camera_label)
@@ -43,6 +48,16 @@ class CameraPanel(QFrame):
         if frame is None:
             return
 
+        # Nếu có layout (tức là placeholder đang hiển thị), hãy xóa nó đi
+        if self.main_camera_label.layout() is not None:
+            # Xóa các widget con trong layout cũ
+            while self.main_camera_label.layout().count():
+                child = self.main_camera_label.layout().takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
+            # Xóa layout cũ bằng cách gán nó cho một widget tạm thời
+            QWidget().setLayout(self.main_camera_label.layout())
+
         try:
             height, width, channel = frame.shape
             bytes_per_line = 3 * width
@@ -53,7 +68,7 @@ class CameraPanel(QFrame):
             scaled_pixmap = pixmap.scaled(self.main_camera_label.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             self.main_camera_label.setPixmap(scaled_pixmap)
 
-            # Clear text when showing camera feed
+            # Clear text khi hiển thị video
             self.main_camera_label.setText("")
         except Exception as e:
             print(f"Lỗi hiển thị camera: {e}")
@@ -69,7 +84,44 @@ class CameraPanel(QFrame):
         self.update_camera(frame)
 
     def show_placeholder(self):
-        """Hiển thị placeholder khi không có camera"""
+        """Hiển thị logo và text khi không có camera"""
+        # Xóa pixmap cũ và layout cũ nếu có
         self.main_camera_label.clear()
-        self.main_camera_label.setText("Nhấn 'Bắt đầu' để khởi động camera\nHoặc kiểm tra kết nối camera")
+        if self.main_camera_label.layout() is not None:
+            # Xóa các widget con trong layout cũ
+            while self.main_camera_label.layout().count():
+                child = self.main_camera_label.layout().takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
+            # Xóa layout cũ
+            QWidget().setLayout(self.main_camera_label.layout())
+
+        # --- Tạo layout mới ---
+        placeholder_layout = QVBoxLayout(self.main_camera_label)
+        placeholder_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.main_camera_label.setLayout(placeholder_layout)
+
+        # --- Label cho Logo ---
+        logo_label = QLabel()
+        logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'img', 'logo.png')
+
+        if os.path.exists(logo_path):
+            pixmap = QPixmap(logo_path)
+            if not pixmap.isNull():
+                scaled_pixmap = pixmap.scaled(400, 400, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                logo_label.setPixmap(scaled_pixmap)
+            else:
+                logo_label.setText("Không thể tải logo.")
+        else:
+            logo_label.setText(f"Không tìm thấy logo tại:\n{logo_path}")
+        
+        placeholder_layout.addWidget(logo_label)
+
+        # --- Label cho Text ---
+        text_label = QLabel("Nhấn 'Bắt đầu' để sử dụng chương trình")
+        text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        text_label.setStyleSheet("font-size: 16px; color: #888;")
+        placeholder_layout.addWidget(text_label)
 

@@ -1,11 +1,8 @@
-"""
-Main Window cho ứng dụng nhận diện trạng thái mắt
-"""
-
 import sys
 import os
 import json
 import numpy as np
+import threading
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QHBoxLayout, QWidget, 
                             QMessageBox, QShortcut)
 from PyQt5.QtCore import Qt, pyqtSlot
@@ -22,27 +19,34 @@ class MainWindow(QMainWindow):
     
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Hệ Thống Nhận Diện Trạng Thái Mắt")
+        self.setWindowTitle("Hệ Thống Nhận Diện Trạng Thái Mất Tập Trung của Tài Xế lái xe")
         self.setMinimumSize(1000, 600)
         
-        self.camera_thread = None
-        self.alert_manager = AlertManager(self)  # Quản lý cảnh báo tùy chỉnh
+        self.alert_manager = AlertManager(self)
         self.settings_file = "settings.json"
 
         self.init_ui()
-        self.load_settings()
 
-        # Lưu trữ các giá trị setting để đồng bộ khi camera khởi tạo (sau khi init_ui tạo settings_panel)
+        self.camera_thread = CameraThread(camera_id=1)
+
+        self.camera_thread.frame_ready.connect(self.camera_panel.update_camera)
+        self.camera_thread.error_occurred.connect(self.handle_error)
+        self.camera_thread.alert_triggered.connect(self.handle_alert)
+
+        self.preload_thread = threading.Thread(target=self.camera_thread.load_ai_modules, daemon=True)
+        self.preload_thread.start()
+
+        self.load_settings()
         self.current_eye_threshold = float(self.settings_panel.eye_threshold_spin.value())
         self.setup_shortcuts()
         
     def init_ui(self):
         """Khởi tạo giao diện người dùng"""
-        # Widget chính
+
         central_widget = QWidget()
+        central_widget.setStyleSheet("background-color: white;")
         self.setCentralWidget(central_widget)
-        
-        # Layout chính
+
         main_layout = QHBoxLayout(central_widget)
         
         # Panel cài đặt (bên trái)
@@ -149,36 +153,19 @@ class MainWindow(QMainWindow):
     def start_camera(self):
         """Bắt đầu camera và xử lý"""
         try:
-            if self.camera_thread is not None and self.camera_thread.isRunning():
+            if self.camera_thread is None or self.camera_thread.isRunning():
                 return
-                
-            # Lấy camera ID
-            camera_id = 0  # Mặc định là camera 0
-            
-            # Khởi tạo camera thread
-            self.camera_thread = CameraThread(camera_id)
-            
-            # Kết nối tín hiệu từ camera thread
-            self.camera_thread.frame_ready.connect(self.camera_panel.update_camera)
-            self.camera_thread.error_occurred.connect(self.handle_error)
-            self.camera_thread.alert_triggered.connect(self.handle_alert)
 
-            # --- ĐỒNG BỘ TOÀN BỘ THÔNG SỐ TỪ UI ---
-            # Cập nhật ngưỡng nhắm mắt (sử dụng giá trị đã lưu)
+            # --- ĐỒNG BỘ TOÀN BỘ THÔNG SỐ TỪ UI TRƯỚC KHI CHẠY ---
             self.camera_thread.set_eye_threshold(self.current_eye_threshold)
-            # Đồng bộ với UI hiện tại
-            self.camera_thread._pending_eye_threshold = self.current_eye_threshold
-            # Luôn cập nhật trạng thái bật/tắt, số lần ngáp tối đa, thời gian reset từ UI
             self.camera_thread.set_yawn_enabled(self.settings_panel.yawn_enable_switch.isChecked())
             self.camera_thread.set_max_yawn_count(self.settings_panel.yawn_count_spin.value())
             self.camera_thread.set_yawn_reset_minutes(self.settings_panel.yawn_reset_spin.value())
 
-            # Cập nhật cài đặt âm thanh
             audio_file_full_path = self.settings_panel.audio_file_label.property("full_path")
             if audio_file_full_path:
                 self.camera_thread.set_audio_file(audio_file_full_path)
             else:
-                # Fallback to default alarm.wav in project root
                 default_audio = os.path.join(os.getcwd(), "alarm.wav")
                 self.camera_thread.set_audio_file(default_audio)
             self.camera_thread.set_audio_duration(float(self.settings_panel.audio_duration_spin.value()))
@@ -188,11 +175,9 @@ class MainWindow(QMainWindow):
             self.settings_panel.start_btn.setEnabled(False)
             self.settings_panel.stop_btn.setEnabled(True)
             self.settings_panel.update_status("Đang xử lý...", "success")
-
-            # Khóa tất cả các controls trong settings khi camera đang chạy
             self.lock_settings_controls(True)
             
-            # Bắt đầu thread
+            # Bắt đầu thread (vòng lặp run)
             self.camera_thread.start_camera()
             
         except Exception as e:
@@ -201,12 +186,8 @@ class MainWindow(QMainWindow):
     def stop_camera(self):
         """Dừng camera và xử lý"""
         if self.camera_thread is not None and self.camera_thread.isRunning():
-            try:
-                self.camera_thread.frame_ready.disconnect(self.camera_panel.update_camera)
-            except Exception:
-                pass
+            # Chỉ dừng vòng lặp của luồng, không hủy đối tượng
             self.camera_thread.stop_camera()
-            self.camera_thread = None
             
             # Cập nhật giao diện - mở khóa các settings khi camera dừng
             self.settings_panel.start_btn.setEnabled(True)

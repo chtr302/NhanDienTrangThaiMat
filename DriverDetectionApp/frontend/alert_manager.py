@@ -36,8 +36,9 @@ class AlertManager(QObject):
         # Lưu vào danh sách active
         self.active_alerts[alert_id] = alert_widget
 
-        # Hiển thị
+        # Hiển thị và bắt đầu animation
         alert_widget.show()
+        alert_widget.show_animation.start()
 
         return alert_id
 
