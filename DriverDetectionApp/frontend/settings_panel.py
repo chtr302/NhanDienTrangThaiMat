@@ -39,6 +39,9 @@ class SettingsPanel(QFrame):
         # Nhóm cài đặt nhận diện ngáp
         self.create_yawn_group(layout)
 
+        # Nhóm cài đặt điểm buồn ngủ (MỚI)
+        self.create_score_group(layout)
+
         # Nhóm điều khiển hệ thống
         self.create_control_group(layout)
 
@@ -162,6 +165,43 @@ class SettingsPanel(QFrame):
         yawn_layout.addLayout(yawn_reset_layout)
 
         parent_layout.addWidget(yawn_group)
+
+    def create_score_group(self, parent_layout):
+        """Tạo nhóm cài đặt điểm buồn ngủ"""
+        score_group = QGroupBox("Cài Đặt Điểm Buồn Ngủ")
+        score_group.setStyleSheet(
+            "QGroupBox { background-color: white; border: 2px solid rgb(200, 200, 200); border-radius: 8px; margin-top: 1ex; padding-top: 15px; } "
+            "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; padding: 0 5px; background-color: white; color: rgb(80, 80, 80); font-weight: bold; }"
+        )
+        score_layout = QVBoxLayout(score_group)
+
+        # Trọng số
+        weights_layout = QHBoxLayout()
+        self.w1_spin = QSpinBox(); self.w1_spin.setValue(50)
+        self.w2_spin = QSpinBox(); self.w2_spin.setValue(20)
+        self.w3_spin = QSpinBox(); self.w3_spin.setValue(30)
+        weights_layout.addWidget(QLabel("W_mắt:")); weights_layout.addWidget(self.w1_spin)
+        weights_layout.addWidget(QLabel("W_ngáp:")); weights_layout.addWidget(self.w2_spin)
+        weights_layout.addWidget(QLabel("W_mất_tập_trung:")); weights_layout.addWidget(self.w3_spin)
+        score_layout.addLayout(weights_layout)
+
+        # Ngưỡng góc
+        angle_layout = QHBoxLayout()
+        self.pitch_thresh_spin = QSpinBox(); self.pitch_thresh_spin.setRange(10, 45); self.pitch_thresh_spin.setValue(20)
+        self.yaw_thresh_spin = QSpinBox(); self.yaw_thresh_spin.setRange(10, 45); self.yaw_thresh_spin.setValue(30)
+        angle_layout.addWidget(QLabel("Ngưỡng Pitch:")); angle_layout.addWidget(self.pitch_thresh_spin)
+        angle_layout.addWidget(QLabel("Ngưỡng Yaw:")); angle_layout.addWidget(self.yaw_thresh_spin)
+        score_layout.addLayout(angle_layout)
+
+        # Ngưỡng cảnh báo
+        alert_thresh_layout = QHBoxLayout()
+        self.alert1_thresh_spin = QSpinBox(); self.alert1_thresh_spin.setRange(1, 100); self.alert1_thresh_spin.setValue(40)
+        self.alert2_thresh_spin = QSpinBox(); self.alert2_thresh_spin.setRange(1, 100); self.alert2_thresh_spin.setValue(70)
+        alert_thresh_layout.addWidget(QLabel("Ngưỡng Cảnh báo 1:")); alert_thresh_layout.addWidget(self.alert1_thresh_spin)
+        alert_thresh_layout.addWidget(QLabel("Ngưỡng Cảnh báo 2:")); alert_thresh_layout.addWidget(self.alert2_thresh_spin)
+        score_layout.addLayout(alert_thresh_layout)
+
+        parent_layout.addWidget(score_group)
 
     def create_control_group(self, parent_layout):
         """Tạo nhóm điều khiển hệ thống"""

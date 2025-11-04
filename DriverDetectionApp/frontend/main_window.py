@@ -72,6 +72,15 @@ class MainWindow(QMainWindow):
         self.settings_panel.audio_duration_spin.valueChanged.connect(self.on_audio_duration_changed)
         # Kết nối ngưỡng mắt
         self.settings_panel.eye_threshold_spin.valueChanged.connect(self.on_eye_threshold_changed)
+
+        # Kết nối cài đặt điểm buồn ngủ (MỚI)
+        self.settings_panel.w1_spin.valueChanged.connect(self.on_score_setting_changed)
+        self.settings_panel.w2_spin.valueChanged.connect(self.on_score_setting_changed)
+        self.settings_panel.w3_spin.valueChanged.connect(self.on_score_setting_changed)
+        self.settings_panel.pitch_thresh_spin.valueChanged.connect(self.on_score_setting_changed)
+        self.settings_panel.yaw_thresh_spin.valueChanged.connect(self.on_score_setting_changed)
+        self.settings_panel.alert1_thresh_spin.valueChanged.connect(self.on_score_setting_changed)
+        self.settings_panel.alert2_thresh_spin.valueChanged.connect(self.on_score_setting_changed)
         
         # Hiển thị placeholder cho camera
         self.camera_panel.show_placeholder()
@@ -150,6 +159,21 @@ class MainWindow(QMainWindow):
             self.camera_thread.set_eye_threshold(float(value))
         self.save_settings()
 
+    def on_score_setting_changed(self):
+        """Cập nhật tất cả các thông số của điểm buồn ngủ"""
+        if self.camera_thread is not None:
+            # Gọi một hàm mới trong camera_thread để cập nhật tất cả các giá trị
+            self.camera_thread.update_score_config(
+                w1_eye=self.settings_panel.w1_spin.value(),
+                w2_yawn=self.settings_panel.w2_spin.value(),
+                w3_distraction=self.settings_panel.w3_spin.value(),
+                pitch_threshold=self.settings_panel.pitch_thresh_spin.value(),
+                yaw_threshold=self.settings_panel.yaw_thresh_spin.value(),
+                alert_level_1_threshold=self.settings_panel.alert1_thresh_spin.value(),
+                alert_level_2_threshold=self.settings_panel.alert2_thresh_spin.value(),
+            )
+        self.save_settings()
+
     def start_camera(self):
         """Bắt đầu camera và xử lý"""
         try:
@@ -157,6 +181,7 @@ class MainWindow(QMainWindow):
                 return
 
             # --- ĐỒNG BỘ TOÀN BỘ THÔNG SỐ TỪ UI TRƯỚC KHI CHẠY ---
+            self.on_score_setting_changed() # Đồng bộ cài đặt điểm
             self.camera_thread.set_eye_threshold(self.current_eye_threshold)
             self.camera_thread.set_yawn_enabled(self.settings_panel.yawn_enable_switch.isChecked())
             self.camera_thread.set_max_yawn_count(self.settings_panel.yawn_count_spin.value())
@@ -258,6 +283,15 @@ class MainWindow(QMainWindow):
         # Nút reset yawn được enable nếu switch ngáp được bật, bất kể camera có chạy hay không
         self.settings_panel.reset_yawn_btn.setEnabled(self.settings_panel.yawn_enable_switch.isChecked())
 
+        # Khóa các controls điểm buồn ngủ (MỚI)
+        self.settings_panel.w1_spin.setEnabled(not lock)
+        self.settings_panel.w2_spin.setEnabled(not lock)
+        self.settings_panel.w3_spin.setEnabled(not lock)
+        self.settings_panel.pitch_thresh_spin.setEnabled(not lock)
+        self.settings_panel.yaw_thresh_spin.setEnabled(not lock)
+        self.settings_panel.alert1_thresh_spin.setEnabled(not lock)
+        self.settings_panel.alert2_thresh_spin.setEnabled(not lock)
+
     def save_settings(self):
         """Lưu cài đặt hiện tại vào file JSON"""
         settings = {
@@ -266,7 +300,15 @@ class MainWindow(QMainWindow):
             "yawn_max_count": self.settings_panel.yawn_count_spin.value(),
             "yawn_reset_minutes": self.settings_panel.yawn_reset_spin.value(),
             "audio_duration": self.settings_panel.audio_duration_spin.value(),
-            "audio_file": self.settings_panel.audio_file_label.property("full_path")
+            "audio_file": self.settings_panel.audio_file_label.property("full_path"),
+            # Cài đặt điểm (MỚI)
+            "w1_eye": self.settings_panel.w1_spin.value(),
+            "w2_yawn": self.settings_panel.w2_spin.value(),
+            "w3_distraction": self.settings_panel.w3_spin.value(),
+            "pitch_threshold": self.settings_panel.pitch_thresh_spin.value(),
+            "yaw_threshold": self.settings_panel.yaw_thresh_spin.value(),
+            "alert_level_1_threshold": self.settings_panel.alert1_thresh_spin.value(),
+            "alert_level_2_threshold": self.settings_panel.alert2_thresh_spin.value(),
         }
         try:
             settings_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__),"..","settings.json"))
@@ -293,6 +335,15 @@ class MainWindow(QMainWindow):
                 if audio_file and os.path.exists(audio_file):
                     self.settings_panel.audio_file_label.setText(os.path.basename(audio_file))
                     self.settings_panel.audio_file_label.setProperty("full_path", audio_file)
+
+                # Tải cài đặt điểm (MỚI)
+                self.settings_panel.w1_spin.setValue(settings.get("w1_eye", 50))
+                self.settings_panel.w2_spin.setValue(settings.get("w2_yawn", 20))
+                self.settings_panel.w3_spin.setValue(settings.get("w3_distraction", 30))
+                self.settings_panel.pitch_thresh_spin.setValue(settings.get("pitch_threshold", 20))
+                self.settings_panel.yaw_thresh_spin.setValue(settings.get("yaw_threshold", 30))
+                self.settings_panel.alert1_thresh_spin.setValue(settings.get("alert_level_1_threshold", 40))
+                self.settings_panel.alert2_thresh_spin.setValue(settings.get("alert_level_2_threshold", 70))
 
         except Exception as e:
             print(f"Lỗi khi tải cài đặt: {e}", file=sys.stderr)
