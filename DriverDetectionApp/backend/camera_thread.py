@@ -89,7 +89,7 @@ class CameraThread(QThread):
     error_occurred = pyqtSignal(str)
     alert_triggered = pyqtSignal(str, str)  # (alert_type, message)
 
-    def __init__(self, camera_id=0):
+    def __init__(self, camera_id=1):
         super().__init__()
         self.camera_id = camera_id
         self.running = False
@@ -108,9 +108,9 @@ class CameraThread(QThread):
 
         # Audio manager for alerts
         self.audio_manager = AudioManager()
-        self.last_drowsy_alert = False
-        self.last_yawn_alert = False
-        self.last_max_yawn_alert = False
+        self.last_alert_level = 0
+        self.alert_level_1_threshold = 40 # Ngưỡng cảnh báo cấp 1
+        self.alert_level_2_threshold = 70 # Ngưỡng cảnh báo cấp 2
 
     # ---- Control helpers (thread-safe enough for simple flags) ----
     def toggle_detection_flag(self, flag_name: str):
@@ -145,6 +145,7 @@ class CameraThread(QThread):
             # Stop any playing audio immediately
             try:
                 self.audio_manager.stop_all_alerts()
+                self.last_alert_level = 0 # Reset mức cảnh báo
             except Exception:
                 pass
         except Exception as e:
@@ -175,7 +176,10 @@ class CameraThread(QThread):
                 enable_yawn_detection=self.yawn_enabled,
                 max_yawn_count=self._pending_max_yawn_count,
                 yawn_reset_minutes=self._pending_yawn_reset_minutes,
-                sleep_threshold=self._pending_eye_threshold  # Apply pending eye threshold
+                sleep_threshold=self._pending_eye_threshold,  # Apply pending eye threshold
+                # Cập nhật các ngưỡng từ UI (sẽ được thêm ở bước sau)
+                alert_level_1_threshold=self.alert_level_1_threshold,
+                alert_level_2_threshold=self.alert_level_2_threshold
             )
             self._ai_loaded = True
             return True
@@ -306,6 +310,16 @@ class CameraThread(QThread):
         if self.monitor is not None:
             self.monitor.update_config(sleep_threshold=threshold)
 
+    def update_score_config(self, **kwargs):
+        """Cập nhật các thông số của điểm buồn ngủ từ UI"""
+        if self.monitor is not None:
+            self.monitor.update_config(**kwargs)
+        # Cập nhật các ngưỡng cảnh báo cục bộ của thread
+        if 'alert_level_1_threshold' in kwargs:
+            self.alert_level_1_threshold = kwargs['alert_level_1_threshold']
+        if 'alert_level_2_threshold' in kwargs:
+            self.alert_level_2_threshold = kwargs['alert_level_2_threshold']
+
     def start_camera(self):
         """Start camera thread"""
         # Không tải AI ở đây nữa. Chỉ khởi chạy luồng.
@@ -349,38 +363,33 @@ class CameraThread(QThread):
 
                         # Process frame with DriverMonitor
                         results = self.monitor.process_frame(frame)
-
-                        # Ưu tiên cảnh báo: BUỒN NGỦ > ĐẾM SỐ LẦN NGÁP
+                        
+                        # --- Logic cảnh báo theo cấp độ ---
+                        score = results.get('drowsiness_score', 0.0)
+                        current_alert_level = 0
                         alert_to_emit = None
                         alert_message = None
 
-                        # 1. Kiểm tra cảnh báo buồn ngủ (mắt nhắm lâu)
-                        if results.get('is_drowsy'):
-                            if not self.last_drowsy_alert:
-                                alert_to_emit = AlertType.DROWSY
-                                alert_message = "CANH BAO: Phat hien buon ngu! Hay nghi ngoi."
-                                self.last_drowsy_alert = True
-                        else:
-                            self.last_drowsy_alert = False
-
-                        # 2. Kiểm tra cảnh báo SỐ LẦN NGÁP VƯỢT NGƯỠNG
-                        if alert_to_emit is None and (
-                            ('yawn_count' in results and 'max_yawn_count' in results and results['yawn_count'] >= results['max_yawn_count'])
-                        ):
-                            if not self.last_max_yawn_alert:
-                                alert_to_emit = AlertType.GENERAL
-                                alert_message = f"CANH BAO: Ban da ngap qua {results['max_yawn_count']} lan! Hay nghi ngoi."
-                                self.last_max_yawn_alert = True
-                        else:
-                            self.last_max_yawn_alert = False
-
-                        # Phát âm thanh và gửi tín hiệu nếu có cảnh báo
-                        if alert_to_emit is not None:
-                            try:
+                        if score >= self.alert_level_2_threshold:
+                            current_alert_level = 2
+                        elif score >= self.alert_level_1_threshold:
+                            current_alert_level = 1
+                        
+                        # Chỉ kích hoạt cảnh báo nếu cấp độ thay đổi (tăng lên)
+                        if current_alert_level > self.last_alert_level:
+                            if current_alert_level == 2:
+                                alert_to_emit = AlertType.DROWSY # Cảnh báo khẩn cấp
+                                alert_message = "NGUY HIỂM: Phát hiện dấu hiệu buồn ngủ nghiêm trọng!"
+                            elif current_alert_level == 1:
+                                alert_to_emit = AlertType.GENERAL # Cảnh báo nhẹ
+                                alert_message = "CẢNH BÁO: Có dấu hiệu mệt mỏi, hãy cẩn thận!"
+                            
+                            if alert_to_emit:
                                 self.audio_manager.play_alert(alert_to_emit)
                                 self.alert_triggered.emit(alert_to_emit.value.upper(), alert_message)
-                            except Exception:
-                                pass
+                        
+                        self.last_alert_level = current_alert_level
+
 
                         # Emit processed frame
                         self.frame_ready.emit(results['frame'])
